@@ -1,0 +1,94 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: flota_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-flota}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flota_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-control_flota}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flota} -d ${POSTGRES_DB:-control_flota}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: flota_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      target: ${BUILD_TARGET:-production}
+    container_name: flota_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 4000
+      DATABASE_URL: postgres://${POSTGRES_USER:-flota}:${POSTGRES_PASSWORD:-flota_pass}@db:5432/${POSTGRES_DB:-control_flota}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      # Motor de ruteo. Público por defecto; para el OSRM propio usa http://osrm:5000
+      OSRM_URL: ${OSRM_URL:-https://router.project-osrm.org}
+    ports:
+      - "${API_PORT:-4000}:4000"
+
+  # OSRM auto-hospedado (ruta más corta sobre el grafo vial real).
+  # Opcional: requiere preprocesar un extracto OSM (ver scripts/osrm-prepare.sh).
+  # Activar con:  docker compose --profile routing up -d
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: flota_osrm
+    profiles: ["routing"]
+    command: osrm-routed --algorithm mld --max-table-size 10000 /data/${OSRM_PBF:-valparaiso-latest}.osrm
+    volumes:
+      - ./osrm-data:/data
+    ports:
+      - "${OSRM_PORT:-5001}:5000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    container_name: flota_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+  # Túnel HTTPS para probar desde el celular (URL pública temporal).
+  # Activar con:  docker compose --profile tunnel up -d cloudflared
+  # La URL https://...trycloudflare.com aparece en:  docker compose logs cloudflared
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: flota_tunnel
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate --url http://web:80
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  db_data:

@@ -1,0 +1,9 @@
+# Normaliza todo a LF en el repo y en checkout (evita que CRLF de Windows
+# rompa scripts .sh y Dockerfiles al desplegar en Linux).
+* text=auto eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.pbf binary

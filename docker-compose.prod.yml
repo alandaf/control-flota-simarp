@@ -1,0 +1,101 @@
+# =====================================================================
+# Control Flota — despliegue de producción (VPS)
+# Uso:
+#   cp .env.prod.example .env.prod   (y edita valores)
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod --profile routing up -d --build
+#
+# Caddy obtiene HTTPS automático (Let's Encrypt) para $DOMAIN.
+# Requisitos: puertos 80 y 443 libres + un registro DNS A de $DOMAIN -> IP del VPS.
+# Nada más se publica al host: db, redis, api y osrm quedan en la red interna.
+# =====================================================================
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: flota_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: flota_redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      target: production
+    container_name: flota_api
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: https://${DOMAIN}
+      OSRM_URL: ${OSRM_URL:-http://osrm:5000}
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: flota_osrm
+    profiles: ["routing"]
+    command: osrm-routed --algorithm mld --max-table-size 10000 /data/${OSRM_PBF:-valparaiso-latest}.osrm
+    volumes:
+      - ./osrm-data:/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        VITE_API_URL: ""          # mismo origen (todo bajo $DOMAIN)
+    container_name: flota_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    # Publicado SOLO en localhost del VPS: tu nginx enruta
+    # flota.simarp.net -> http://127.0.0.1:${WEB_BIND:-8095}
+    ports:
+      - "127.0.0.1:${WEB_BIND:-8095}:80"
+
+  # Caddy: solo si NO tienes otro proxy y 80/443 están libres.
+  # Actívalo con el perfil "edge":  ... --profile routing --profile edge up -d
+  caddy:
+    image: caddy:2-alpine
+    container_name: flota_caddy
+    profiles: ["edge"]
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:

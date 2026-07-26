@@ -1,0 +1,8 @@
+# HTTPS automático (Let's Encrypt) para el dominio indicado en .env.prod
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Toda la app (web + /api + /socket.io) va al contenedor web,
+	# que a su vez hace de proxy interno hacia la API.
+	reverse_proxy web:80
+}
