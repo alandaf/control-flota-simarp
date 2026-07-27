@@ -5,6 +5,7 @@ import { createMap, icons, SANTIAGO } from '../lib/mapkit';
 import { api, es, money, reverseGeocode, initials, type GeoResult } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
+import { useWakeLock } from '../lib/wakeLock';
 import { Logo, User, LogOut, Pin, Flag, Phone, Car, CheckCircle, Route, Star, StarOutline, Clock, Locate } from '../components/Icons';
 import SearchBox from '../components/SearchBox';
 
@@ -20,9 +21,11 @@ export default function Passenger() {
   const carMarker = useRef<L.Marker | null>(null);
   const line = useRef<L.Polyline | null>(null);
   const joinedTrip = useRef<number | null>(null);
-  const routeKey = useRef<string>(''); // ruta REAL ya dibujada para este viaje+estado
+  const routeKey = useRef<string>(''); // ruta REAL ya dibujada para este viaje+fase
+  const lastRouteAt = useRef(0);       // último cálculo de la ruta del conductor
   const following = useRef(true);      // el mapa sigue al vehículo
   const [showRecenter, setShowRecenter] = useState(false);
+  const [eta, setEta] = useState<{ mins: number; kind: 'pickup' | 'trip' } | null>(null);
 
   const [origin, setOrigin] = useState<Pt | null>(null);
   const [dest, setDest] = useState<Pt | null>(null);
@@ -36,6 +39,7 @@ export default function Passenger() {
   const originRef = useRef<Pt | null>(null); originRef.current = origin;
   const destRef = useRef<Pt | null>(null); destRef.current = dest;
   const tripRef = useRef<any>(null); tripRef.current = trip;
+  useWakeLock(!!trip); // pantalla encendida durante el viaje
 
   // ---- Inicializar mapa (una sola vez) ----
   useEffect(() => {
@@ -100,6 +104,7 @@ export default function Passenger() {
         getSocket().emit('trip:leave', { trip_id: joinedTrip.current });
         joinedTrip.current = null;
         routeKey.current = '';
+        setEta(null);
         removeCar();
       }
     } catch { /* ignore */ }
@@ -167,32 +172,42 @@ export default function Passenger() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin, dest, trip]);
 
-  // ---- Ruta del viaje activo (origen → destino, siguiendo calles) ----
-  // Reintenta en cada refresco hasta obtener la ruta real (OSRM puede fallar).
+  // ---- Ruta del viaje activo, según la fase ----
+  //  - antes de recoger: CONDUCTOR → tu punto de recogida (+ ETA de llegada)
+  //  - en viaje: tu origen → destino (+ tiempo estimado de llegada)
   async function ensureTripRoute(t: any) {
-    const key = `${t.id}:route`;
-    if (routeKey.current === key) return;
-    const firstDraw = routeKey.current !== key && !line.current;
+    const pickup = t.status !== 'in_progress';
+    const key = `${t.id}:${pickup ? 'pickup' : 'trip'}`;
+    const driver = t.driver_lat ? { lat: Number(t.driver_lat), lng: Number(t.driver_lng) } : null;
+    const origin = { lat: Number(t.origin_lat), lng: Number(t.origin_lng) };
+    const dest = { lat: Number(t.dest_lat), lng: Number(t.dest_lng) };
+    const from = pickup ? driver : origin;
+    const to = pickup ? origin : dest;
+    if (!from) return; // aún sin ubicación del conductor para la fase de recogida
+
+    const stale = pickup && Date.now() - lastRouteAt.current > 12000;
+    if (routeKey.current === key && !stale) return;
+    const firstDraw = routeKey.current !== key && !carMarker.current;
+
     try {
       const r = await api<any>('/api/trips/route', {
-        origin_lat: Number(t.origin_lat), origin_lng: Number(t.origin_lng),
-        dest_lat: Number(t.dest_lat), dest_lng: Number(t.dest_lng),
+        origin_lat: from.lat, origin_lng: from.lng, dest_lat: to.lat, dest_lng: to.lng,
       });
       if (r.geometry && r.routed) {
-        // No re-encuadrar: el mapa sigue al vehículo (evita saltos)
-        drawRoute(r.geometry, true, firstDraw && !carMarker.current);
-        routeKey.current = key; // éxito: dejar de reintentar
+        drawRoute(r.geometry, true, firstDraw, pickup ? '#10b981' : '#4f46e5');
+        setEta({ mins: r.minutes, kind: pickup ? 'pickup' : 'trip' });
+        routeKey.current = key; lastRouteAt.current = Date.now();
         return;
       }
     } catch { /* reintenta en el próximo refresco */ }
-    if (!line.current) drawRoute([[Number(t.origin_lat), Number(t.origin_lng)], [Number(t.dest_lat), Number(t.dest_lng)]], false, !carMarker.current);
+    if (!line.current) drawRoute([[from.lat, from.lng], [to.lat, to.lng]], false, firstDraw);
   }
 
-  function drawRoute(coords: [number, number][], routed = true, fit = true) {
+  function drawRoute(coords: [number, number][], routed = true, fit = true, color = '#4f46e5') {
     const m = map.current!;
     if (line.current) m.removeLayer(line.current);
     line.current = L.polyline(coords, {
-      color: '#4f46e5', weight: 5, opacity: 0.85,
+      color, weight: 5, opacity: 0.85,
       dashArray: routed ? undefined : '6 8', // punteada si no hubo ruteo real
     }).addTo(m);
     if (fit && coords.length) m.fitBounds(line.current.getBounds(), { padding: [60, 60] });
@@ -286,7 +301,7 @@ export default function Passenger() {
             </button>
           </>
         ) : (
-          <ActiveTrip trip={trip} onCancel={cancelTrip} />
+          <ActiveTrip trip={trip} eta={eta} onCancel={cancelTrip} />
         )}
       </div>
 
@@ -311,8 +326,9 @@ export default function Passenger() {
   );
 }
 
-function ActiveTrip({ trip, onCancel }: { trip: any; onCancel: () => void }) {
+function ActiveTrip({ trip, eta, onCancel }: { trip: any; eta: { mins: number; kind: string } | null; onCancel: () => void }) {
   const color = ({ requested: 'off', accepted: 'busy', arrived: 'busy', in_progress: 'on' } as any)[trip.status] || 'off';
+  const etaTxt = eta && eta.mins ? ` · ~${eta.mins} min` : '';
 
   if (trip.status === 'requested') {
     return (
@@ -343,9 +359,9 @@ function ActiveTrip({ trip, onCancel }: { trip: any; onCancel: () => void }) {
         </div>
         <span className={`chip ${color}`}>{es(trip.status)}</span>
       </div>
-      {trip.status === 'accepted' && <div className="banner info"><Car /> El conductor va en camino a recogerte.</div>}
+      {trip.status === 'accepted' && <div className="banner info"><Car /> El conductor va en camino a recogerte{eta?.kind === 'pickup' ? etaTxt : ''}.</div>}
       {trip.status === 'arrived' && <div className="banner warn"><CheckCircle /> Tu conductor llegó al punto de encuentro.</div>}
-      {trip.status === 'in_progress' && <div className="banner accent"><Route /> En viaje hacia tu destino.</div>}
+      {trip.status === 'in_progress' && <div className="banner accent"><Route /> En viaje hacia tu destino{eta?.kind === 'trip' && eta.mins ? ` · llegada en ~${eta.mins} min` : ''}.</div>}
       <div className="fare-box">
         <div><div className="amt tnum">{money(trip.fare)}</div><div className="meta">{trip.distance_km} km</div></div>
         {trip.driver_phone && <a className="btn accent small" href={`tel:${trip.driver_phone}`}><Phone /> Llamar</a>}

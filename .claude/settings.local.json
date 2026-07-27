@@ -70,7 +70,12 @@
       "Bash(python -c \"import sys,json;print\\('  ->',json.load\\(sys.stdin\\)\\)\")",
       "Bash(python -c ' *)",
       "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('  servicios:',len\\(d['trips']\\),'| ejemplo:',{k:d['trips'][0][k] for k in ['id','passenger_name','driver_name','plate','fare','status']} if d['trips'] else 'ninguno'\\)\")",
-      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('  km:',d['distance_km'],'| tarifa EMPRESA:',d['fare']\\)\")"
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('  km:',d['distance_km'],'| tarifa EMPRESA:',d['fare']\\)\")",
+      "Bash(docker version *)",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('  routed:',d['routed'],'| km:',d['distance_km'],'| ETA:',d['minutes'],'min'\\)\")",
+      "Bash(curl -s -o /dev/null -w \"web local -> %{http_code}\\\\n\" localhost:8080/)",
+      "Bash(curl -s -o /dev/null -w \"web -> %{http_code}\\\\n\" localhost:8080/)",
+      "Bash(docker rm *)"
     ]
   }
 }

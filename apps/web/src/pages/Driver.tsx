@@ -4,6 +4,7 @@ import { createMap, icons, SANTIAGO } from '../lib/mapkit';
 import { api, es, money, initials } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
+import { useWakeLock } from '../lib/wakeLock';
 import { Wheel, LogOut, Power, Phone, Navigation, Check, Play, CheckCircle, Search, ChevronDown, ChevronUp } from '../components/Icons';
 import NavGuide from '../components/NavGuide';
 
@@ -19,14 +20,16 @@ export default function Driver() {
   const lastPush = useRef(0);
   const onlineRef = useRef(false);
   const tripRef = useRef<any>(null);
-  const routeKey = useRef<string>('');   // ruta REAL ya dibujada para este viaje+estado
+  const routeKey = useRef<string>('');   // ruta REAL ya dibujada para este viaje+fase
   const markerKey = useRef<string>('');  // marcadores origen/destino ya puestos
+  const lastRouteAt = useRef(0);         // último cálculo de la ruta de recogida
 
   const [status, setStatus] = useState<'offline' | 'available' | 'busy'>('offline');
   const [trip, setTrip] = useState<any>(null);
   const [pending, setPending] = useState<any[]>([]);
   const [collapsed, setCollapsed] = useState(false); // mapa grande / detalles ocultos
   tripRef.current = trip;
+  useWakeLock(!!trip); // pantalla encendida durante el viaje (GPS no se congela)
 
   // Al cambiar el tamaño del sheet, recalcular el mapa
   useEffect(() => { setTimeout(() => map.current?.invalidateSize(), 260); }, [collapsed, trip]);
@@ -47,7 +50,8 @@ export default function Driver() {
         else { meMarker.current = L.marker([p.lat, p.lng], { icon: icons.taxi }).addTo(m); m.setView([p.lat, p.lng], 15); }
         // Durante un viaje, el mapa sigue al conductor (modo navegación)
         if (tripRef.current) m.panTo([p.lat, p.lng], { animate: true, duration: 0.5 });
-        if (onlineRef.current && Date.now() - lastPush.current > 3000) {
+        // Enviar ubicación si está en línea O tiene un viaje activo (clave para el pasajero)
+        if ((onlineRef.current || tripRef.current) && Date.now() - lastPush.current > 3000) {
           lastPush.current = Date.now();
           getSocket().emit('driver:location', { lat: p.lat, lng: p.lng, heading: pos.coords.heading ?? undefined });
         }
@@ -106,45 +110,53 @@ export default function Driver() {
     } catch (e: any) { alert(e.message); }
   }
 
-  // Dibuja la ruta real. Reintenta en cada refresco hasta lograrla (el OSRM
-  // público puede fallar de forma intermitente); solo deja de intentar cuando
-  // obtiene una ruta real, para no quedarse pegado en la línea recta.
+  // Dibuja la ruta según la fase:
+  //  - antes de recoger (accepted/arrived): CONDUCTOR → punto de recogida (origen)
+  //  - en viaje (in_progress): origen → destino
+  // Recalcula la ruta de recogida cada ~15s mientras el conductor se acerca.
   async function ensureRoute(t: any) {
-    const key = String(t.id); // la ruta origen→destino no cambia con el estado
     const m = map.current!;
+    const origin = { lat: Number(t.origin_lat), lng: Number(t.origin_lng) };
+    const dest = { lat: Number(t.dest_lat), lng: Number(t.dest_lng) };
+    const pickup = t.status !== 'in_progress';
+    const key = `${t.id}:${pickup ? 'pickup' : 'trip'}`;
 
-    // Marcadores origen/destino: una vez por viaje+estado
+    // Marcadores + encuadre inicial: una vez por fase
     if (markerKey.current !== key) {
       markerKey.current = key;
       routeKey.current = '';
       clearRoute();
-      oMarker.current = L.marker([t.origin_lat, t.origin_lng], { icon: icons.origin }).addTo(m);
-      dMarker.current = L.marker([t.dest_lat, t.dest_lng], { icon: icons.dest }).addTo(m);
-      m.fitBounds(L.latLngBounds([[t.origin_lat, t.origin_lng], [t.dest_lat, t.dest_lng]]), { padding: [70, 70] });
+      oMarker.current = L.marker([origin.lat, origin.lng], { icon: icons.origin }).addTo(m);
+      dMarker.current = L.marker([dest.lat, dest.lng], { icon: icons.dest }).addTo(m);
+      const fitPts = pickup && myPos.current
+        ? [[myPos.current.lat, myPos.current.lng], [origin.lat, origin.lng]]
+        : [[origin.lat, origin.lng], [dest.lat, dest.lng]];
+      m.fitBounds(L.latLngBounds(fitPts as any), { padding: [70, 70] });
     }
 
-    if (routeKey.current === key) return; // ya tenemos la ruta real
+    // Ruta de recogida: refrescar cada 15s (el conductor se mueve)
+    const stale = pickup && Date.now() - lastRouteAt.current > 15000;
+    if (routeKey.current === key && !stale) return;
 
-    // Ruta del viaje (origen → destino), siguiendo las calles.
-    const origin = { lat: Number(t.origin_lat), lng: Number(t.origin_lng) };
-    const dest = { lat: Number(t.dest_lat), lng: Number(t.dest_lng) };
+    const from = pickup ? (myPos.current ?? origin) : origin;
+    const to = pickup ? origin : dest;
+    const color = pickup ? '#10b981' : '#4f46e5';
 
     try {
       const r = await api<any>('/api/trips/route', {
-        origin_lat: origin.lat, origin_lng: origin.lng, dest_lat: dest.lat, dest_lng: dest.lng,
+        origin_lat: from.lat, origin_lng: from.lng, dest_lat: to.lat, dest_lng: to.lng,
       });
       if (r.geometry && r.routed) {
         if (line.current) m.removeLayer(line.current);
-        line.current = L.polyline(r.geometry, { color: '#4f46e5', weight: 5, opacity: 0.9 }).addTo(m);
-        m.fitBounds(line.current.getBounds(), { padding: [70, 70] });
-        routeKey.current = key; // éxito: dejar de reintentar
+        line.current = L.polyline(r.geometry, { color, weight: 5, opacity: 0.9 }).addTo(m);
+        routeKey.current = key;
+        lastRouteAt.current = Date.now();
         return;
       }
     } catch { /* reintenta en el próximo refresco */ }
 
-    // Provisional (aún sin ruta real): línea recta punteada, seguirá reintentando
     if (!line.current) {
-      line.current = L.polyline([[origin.lat, origin.lng], [dest.lat, dest.lng]],
+      line.current = L.polyline([[from.lat, from.lng], [to.lat, to.lng]],
         { color: '#94a3b8', weight: 4, opacity: 0.7, dashArray: '6 8' }).addTo(m);
     }
   }
