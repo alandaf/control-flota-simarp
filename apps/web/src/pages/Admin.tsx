@@ -248,32 +248,106 @@ function Vehicles() {
   );
 }
 
+const emptyUser = { id: 0, name: '', email: '', phone: '', role: 'passenger', status: 'active', password: '' };
+const ROLE_ES: Record<string, string> = { passenger: 'Pasajero', driver: 'Conductor', admin: 'Administrador' };
+
 function Users() {
+  const { user: me } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
+  const [filter, setFilter] = useState('');
+  const [edit, setEdit] = useState<any | null>(null);
   const load = () => api<{ users: any[] }>('/api/admin/users').then((d) => setUsers(d.users)).catch(() => {});
   useEffect(() => { load(); }, []);
+
   async function toggle(id: number) {
     try { await api('/api/admin/toggle_user', { id }); load(); } catch (e: any) { alert(e.message); }
   }
+  async function save() {
+    if (!edit.name || !edit.email) { alert('Nombre y email son obligatorios'); return; }
+    try {
+      await api('/api/admin/user_save', {
+        id: Number(edit.id) || 0, name: edit.name.trim(), email: edit.email.trim(),
+        phone: edit.phone || '', role: edit.role, status: edit.status, password: edit.password || '',
+      });
+      setEdit(null); load();
+    } catch (e: any) { alert(e.message); }
+  }
+  async function del(u: any) {
+    if (!confirm(`¿Eliminar a ${u.name}? Se borrarán también sus viajes asociados.`)) return;
+    try { await api('/api/admin/user_delete', { id: u.id }); load(); } catch (e: any) { alert(e.message); }
+  }
+
+  const shown = filter ? users.filter((u) => u.role === filter) : users;
+
   return (
-    <div className="card">
-      <h4>Usuarios ({users.length})</h4>
-      <div style={{ overflowX: 'auto' }}>
-        <table>
-          <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td><b>{u.name}</b><br /><span className="muted">{u.phone || ''}</span></td>
-                <td className="muted">{u.email}</td>
-                <td><span className={`badge ${u.role === 'driver' ? 'busy' : u.role === 'admin' ? 'in_progress' : 'completed'}`}>{u.role}</span></td>
-                <td><span className={`badge ${u.status}`}>{es(u.status)}</span></td>
-                <td>{u.role !== 'admin' && <button className="btn small ghost" onClick={() => toggle(u.id)}>{u.status === 'active' ? 'Desactivar' : 'Activar'}</button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <>
+      <div className="between mb">
+        <div className="row" style={{ gap: 6 }}>
+          {['', 'passenger', 'driver', 'admin'].map((r) => (
+            <button key={r} className={`chiptab ${filter === r ? 'active' : ''}`} onClick={() => setFilter(r)}>
+              {r === '' ? 'Todos' : ROLE_ES[r]}
+            </button>
+          ))}
+        </div>
+        <button className="btn small" onClick={() => setEdit({ ...emptyUser })}><Plus /> Nuevo</button>
       </div>
-    </div>
+
+      <div className="card">
+        <h4>Usuarios ({shown.length})</h4>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+            <tbody>
+              {shown.map((u) => (
+                <tr key={u.id}>
+                  <td><b>{u.name}</b><br /><span className="muted">{u.phone || ''}</span></td>
+                  <td className="muted">{u.email}</td>
+                  <td><span className={`badge ${u.role === 'driver' ? 'busy' : u.role === 'admin' ? 'in_progress' : 'completed'}`}>{ROLE_ES[u.role]}</span></td>
+                  <td><span className={`badge ${u.status}`}>{es(u.status)}</span></td>
+                  <td>
+                    <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                      <button className="btn small secondary" onClick={() => setEdit({ ...u, password: '' })}>Editar</button>
+                      {u.role !== 'admin' && <button className="btn small ghost" onClick={() => toggle(u.id)}>{u.status === 'active' ? 'Desactivar' : 'Activar'}</button>}
+                      {me?.id !== u.id && <button className="icon-btn" style={{ color: 'var(--danger)' }} onClick={() => del(u)} title="Eliminar"><Trash /></button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {edit && (
+        <div className="modal-bg">
+          <div className="modal">
+            <h3>{edit.id ? 'Editar usuario' : 'Nuevo usuario'}</h3>
+            <label>Nombre completo</label>
+            <input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Nombre y apellido" />
+            <label>Email</label>
+            <input type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} placeholder="correo@correo.cl" />
+            <div className="row" style={{ gap: 10 }}>
+              <div className="grow"><label>Teléfono</label><input value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} /></div>
+              <div className="grow"><label>Rol</label>
+                <select value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value })}>
+                  <option value="passenger">Pasajero</option>
+                  <option value="driver">Conductor</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+            </div>
+            <label>Estado</label>
+            <select value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>
+              <option value="active">Activo</option>
+              <option value="inactive">Inactivo</option>
+            </select>
+            <label>Contraseña {edit.id ? <span className="muted">(en blanco = no cambiar)</span> : ''}</label>
+            <input type="password" value={edit.password} onChange={(e) => setEdit({ ...edit, password: e.target.value })} placeholder={edit.id ? '••••••' : 'mínimo 6 caracteres'} />
+            <button className="btn" onClick={save}>Guardar</button>
+            <button className="btn ghost small mt" style={{ width: '100%' }} onClick={() => setEdit(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

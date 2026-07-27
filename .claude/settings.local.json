@@ -66,7 +66,8 @@
       "Bash(ipconfig //flushdns)",
       "Bash(curl -s -k -I --max-time 12 --resolve flota.simarp.net:443:91.99.175.78 https://flota.simarp.net)",
       "Bash(curl -s -I --max-time 12 --resolve flota.simarp.net:80:91.99.175.78 http://flota.simarp.net)",
-      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('routed:',d['routed'],'| pasos:',len\\(d['steps']\\)\\); [print\\('  ',s['instruction'],f\\\\\"\\({s['distance']}m\\)\\\\\"\\) for s in d['steps'][:5]]\")"
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('routed:',d['routed'],'| pasos:',len\\(d['steps']\\)\\); [print\\('  ',s['instruction'],f\\\\\"\\({s['distance']}m\\)\\\\\"\\) for s in d['steps'][:5]]\")",
+      "Bash(python -c \"import sys,json;print\\('  ->',json.load\\(sys.stdin\\)\\)\")"
     ]
   }
 }

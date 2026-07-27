@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { one, query } from '../db.js';
-import { authGuard } from '../auth.js';
+import { authGuard, hashPassword, type AuthUser } from '../auth.js';
 
 export async function adminRoutes(app: FastifyInstance) {
   // Todas las rutas requieren rol admin
@@ -58,6 +58,63 @@ export async function adminRoutes(app: FastifyInstance) {
       `UPDATE users SET status = CASE WHEN status = 'active' THEN 'inactive' ELSE 'active' END
        WHERE id = $1 AND role <> 'admin'`, [id]
     );
+    return { ok: true };
+  });
+
+  // ---- Crear / editar usuario ----
+  const userSchema = z.object({
+    id: z.number().optional().default(0),
+    name: z.string().min(2),
+    email: z.string().email(),
+    phone: z.string().optional().default(''),
+    role: z.enum(['passenger', 'driver', 'admin']),
+    status: z.enum(['active', 'inactive']).optional().default('active'),
+    password: z.string().optional().default(''),
+  });
+
+  app.post('/user_save', async (req, reply) => {
+    const p = userSchema.safeParse(req.body);
+    if (!p.success) return reply.code(400).send({ ok: false, error: 'Datos inválidos' });
+    const u = p.data;
+    const email = u.email.toLowerCase();
+
+    const dup = await one('SELECT id FROM users WHERE email = $1 AND id <> $2', [email, u.id]);
+    if (dup) return reply.code(409).send({ ok: false, error: 'Ese email ya está en uso' });
+
+    let userId = u.id;
+    if (u.id > 0) {
+      // Editar
+      if (u.password) {
+        if (u.password.length < 6) return reply.code(400).send({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres' });
+        const hash = await hashPassword(u.password);
+        await query('UPDATE users SET name=$1,email=$2,phone=$3,role=$4,status=$5,password_hash=$6 WHERE id=$7',
+          [u.name, email, u.phone, u.role, u.status, hash, u.id]);
+      } else {
+        await query('UPDATE users SET name=$1,email=$2,phone=$3,role=$4,status=$5 WHERE id=$6',
+          [u.name, email, u.phone, u.role, u.status, u.id]);
+      }
+    } else {
+      // Crear
+      if (!u.password || u.password.length < 6) return reply.code(400).send({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres' });
+      const hash = await hashPassword(u.password);
+      const row = await one<{ id: number }>(
+        'INSERT INTO users (name,email,phone,password_hash,role,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+        [u.name, email, u.phone, hash, u.role, u.status]);
+      userId = row!.id;
+    }
+    // Si es conductor, asegurar su ficha
+    if (u.role === 'driver') {
+      await query(`INSERT INTO drivers (user_id, status) VALUES ($1,'offline') ON CONFLICT (user_id) DO NOTHING`, [userId]);
+    }
+    return { ok: true, id: userId };
+  });
+
+  // ---- Eliminar usuario ----
+  app.post('/user_delete', async (req, reply) => {
+    const me = req.user as AuthUser;
+    const id = Number((req.body as any)?.id ?? 0);
+    if (id === me.id) return reply.code(400).send({ ok: false, error: 'No puedes eliminar tu propia cuenta' });
+    await query('DELETE FROM users WHERE id = $1', [id]);
     return { ok: true };
   });
 
