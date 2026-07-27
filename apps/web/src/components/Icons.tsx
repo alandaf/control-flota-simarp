@@ -48,6 +48,12 @@ export const Trash = (p: P) => (
 export const ChevronLeft = (p: P) => (
   <svg {...base(p)}><path d="m15 6-6 6 6 6" /></svg>
 );
+export const ChevronDown = (p: P) => (
+  <svg {...base(p)}><path d="m6 9 6 6 6-6" /></svg>
+);
+export const ChevronUp = (p: P) => (
+  <svg {...base(p)}><path d="m6 15 6-6 6 6" /></svg>
+);
 export const Search = (p: P) => (
   <svg {...base(p)}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></svg>
 );

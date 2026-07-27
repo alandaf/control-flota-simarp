@@ -1,65 +1,83 @@
 import type { FastifyInstance } from 'fastify';
 import { authGuard } from '../auth.js';
 
-const NOMINATIM = 'https://nominatim.openstreetmap.org';
-const HEADERS = { 'User-Agent': 'ControlFlota/1.0 (fleet demo)', 'Accept-Language': 'es' };
+// Photon (Komoot): geocodificador OSM pensado para autocompletar. Sin API key,
+// más tolerante que Nominatim (mejor para muchos usuarios en un mismo servidor).
+const PHOTON = 'https://photon.komoot.io';
+const HEADERS = { 'User-Agent': 'ControlFlota/1.0 (fleet demo)' };
 
-// Caché simple en memoria (evita golpear Nominatim de más)
+// Caché simple en memoria
 const cache = new Map<string, { at: number; data: any }>();
 const TTL = 1000 * 60 * 30;
 function cached(key: string) {
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < TTL) return hit.data;
-  return null;
+  return hit && Date.now() - hit.at < TTL ? hit.data : null;
 }
 function put(key: string, data: any) {
   cache.set(key, { at: Date.now(), data });
-  if (cache.size > 500) cache.delete(cache.keys().next().value as string);
+  if (cache.size > 800) cache.delete(cache.keys().next().value as string);
 }
 
-async function nominatim(path: string): Promise<any> {
+async function photon(path: string): Promise<any> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 6000);
   try {
-    const res = await fetch(`${NOMINATIM}${path}`, { headers: HEADERS, signal: ctrl.signal });
-    if (!res.ok) throw new Error(`nominatim ${res.status}`);
+    const res = await fetch(`${PHOTON}${path}`, { headers: HEADERS, signal: ctrl.signal });
+    if (!res.ok) throw new Error(`photon ${res.status}`);
     return await res.json();
   } finally {
     clearTimeout(t);
   }
 }
 
-function shortLabel(display: string): string {
-  return display.split(',').slice(0, 3).join(',').trim();
+/** Arma una etiqueta legible desde las propiedades de un feature de Photon. */
+function label(pr: any): string {
+  const main = pr.name
+    ? (pr.housenumber ? `${pr.name} ${pr.housenumber}` : pr.name)
+    : [pr.street, pr.housenumber].filter(Boolean).join(' ');
+  const area = pr.district || pr.city || pr.locality || pr.county || '';
+  const region = pr.state || pr.country || '';
+  return [main, area, region].filter(Boolean).slice(0, 3).join(', ') || `${pr.city || ''}`;
+}
+
+function centerOfViewbox(vb?: string): { lat: number; lon: number } | null {
+  if (!vb) return null;
+  const [w, s, e, n] = vb.split(',').map(Number);
+  if ([w, s, e, n].some((x) => Number.isNaN(x))) return null;
+  return { lat: (s + n) / 2, lon: (w + e) / 2 };
 }
 
 export async function geoRoutes(app: FastifyInstance) {
   // ---- Búsqueda de direcciones (autocompletar) ----
-  app.get('/search', { preHandler: authGuard() }, async (req, reply) => {
+  app.get('/search', { preHandler: authGuard() }, async (req) => {
     const q = String((req.query as any)?.q ?? '').trim();
     if (q.length < 3) return { ok: true, results: [] };
 
-    // Sesga a la vista actual del mapa si viene (mejores resultados locales)
     const vb = (req.query as any)?.viewbox as string | undefined;
-    const key = `s:${q}:${vb ?? ''}`;
+    const c = centerOfViewbox(vb);
+    const key = `s:${q}:${c ? c.lat.toFixed(2) + ',' + c.lon.toFixed(2) : ''}`;
     const hit = cached(key);
     if (hit) return { ok: true, results: hit };
 
-    let path = `/search?format=jsonv2&addressdetails=0&limit=6&countrycodes=cl&accept-language=es&q=${encodeURIComponent(q)}`;
-    if (vb) path += `&viewbox=${encodeURIComponent(vb)}&bounded=0`;
+    let path = `/api/?q=${encodeURIComponent(q)}&limit=8&lang=default`;
+    if (c) path += `&lat=${c.lat}&lon=${c.lon}`; // sesga a la vista del mapa
 
     try {
-      const data = await nominatim(path);
-      const results = (Array.isArray(data) ? data : []).map((r: any) => ({
-        label: shortLabel(r.display_name),
-        full: r.display_name,
-        lat: parseFloat(r.lat),
-        lng: parseFloat(r.lon),
-      }));
+      const data = await photon(path);
+      const seen = new Set<string>();
+      const results = (data?.features ?? [])
+        .map((f: any) => {
+          const [lng, lat] = f.geometry.coordinates;
+          return { label: label(f.properties), full: label(f.properties), lat, lng };
+        })
+        .filter((r: any) => {
+          if (!r.label || seen.has(r.label)) return false;
+          seen.add(r.label); return true;
+        });
       put(key, results);
       return { ok: true, results };
     } catch {
-      return reply.send({ ok: true, results: [] });
+      return { ok: true, results: [] };
     }
   });
 
@@ -74,10 +92,11 @@ export async function geoRoutes(app: FastifyInstance) {
     if (hit) return { ok: true, label: hit };
 
     try {
-      const d = await nominatim(`/reverse?format=jsonv2&zoom=18&accept-language=es&lat=${lat}&lon=${lng}`);
-      const label = d?.display_name ? shortLabel(d.display_name) : `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      put(key, label);
-      return { ok: true, label };
+      const data = await photon(`/reverse?lat=${lat}&lon=${lng}&lang=default`);
+      const f = data?.features?.[0];
+      const lbl = f ? label(f.properties) : `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      put(key, lbl);
+      return { ok: true, label: lbl };
     } catch {
       return { ok: true, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}` };
     }

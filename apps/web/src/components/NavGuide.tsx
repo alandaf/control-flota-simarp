@@ -18,21 +18,33 @@ export default function NavGuide({ target, legKey, getPos }: Props) {
   const [steps, setSteps] = useState<Step[]>([]);
   const [idx, setIdx] = useState(1);
   const [distM, setDistM] = useState(0);
-  const [muted, setMuted] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(false); // OFF por defecto (iOS exige un toque)
 
   const idxRef = useRef(1); idxRef.current = idx;
   const stepsRef = useRef<Step[]>([]); stepsRef.current = steps;
-  const mutedRef = useRef(false); mutedRef.current = muted;
+  const voiceRef = useRef(false);        // se actualiza al instante al tocar
   const spokenAt = useRef<number>(-1);   // idx anunciado "en X metros"
   const spokenNow = useRef<number>(-1);  // idx anunciado "ahora"
   const offCount = useRef(0);
 
   function speak(text: string) {
-    if (mutedRef.current || !('speechSynthesis' in window)) return;
+    if (!voiceRef.current || !('speechSynthesis' in window)) return;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'es-ES'; u.rate = 1;
+    const v = window.speechSynthesis.getVoices().find((x) => x.lang?.toLowerCase().startsWith('es'));
+    if (v) u.voice = v;
+    try { window.speechSynthesis.resume(); } catch {}
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
+  }
+
+  // Se llama DENTRO del gesto de toque -> desbloquea la voz en iOS
+  function toggleVoice() {
+    const next = !voiceRef.current;
+    voiceRef.current = next;
+    setVoiceOn(next);
+    if (next) speak('Navegación por voz activada');
+    else window.speechSynthesis.cancel();
   }
 
   // (Re)calcula la ruta con maniobras desde la posición actual hacia el destino
@@ -93,9 +105,9 @@ export default function NavGuide({ target, legKey, getPos }: Props) {
         <div className="nav-dist">{cur.type === 'arrive' ? 'Llegando' : fmtDist(distM)}</div>
         <div className="nav-instr">{cur.instruction}</div>
       </div>
-      <button className="nav-mute" onClick={() => { setMuted((v) => !v); if (muted) speak('Navegación activada'); }}
-              title={muted ? 'Activar voz' : 'Silenciar'}>
-        {muted ? <VolumeOff /> : <Volume />}
+      <button className={`nav-mute${voiceOn ? '' : ' off'}`} onClick={toggleVoice}
+              title={voiceOn ? 'Silenciar voz' : 'Activar voz'}>
+        {voiceOn ? <Volume /> : <VolumeOff />}
       </button>
     </div>
   );

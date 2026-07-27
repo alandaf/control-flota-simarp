@@ -4,7 +4,7 @@ import { createMap, icons, SANTIAGO } from '../lib/mapkit';
 import { api, es, money, initials } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
-import { Wheel, LogOut, Power, Phone, Navigation, Check, Play, CheckCircle, Search } from '../components/Icons';
+import { Wheel, LogOut, Power, Phone, Navigation, Check, Play, CheckCircle, Search, ChevronDown, ChevronUp } from '../components/Icons';
 import NavGuide from '../components/NavGuide';
 
 export default function Driver() {
@@ -25,7 +25,11 @@ export default function Driver() {
   const [status, setStatus] = useState<'offline' | 'available' | 'busy'>('offline');
   const [trip, setTrip] = useState<any>(null);
   const [pending, setPending] = useState<any[]>([]);
+  const [collapsed, setCollapsed] = useState(false); // mapa grande / detalles ocultos
   tripRef.current = trip;
+
+  // Al cambiar el tamaño del sheet, recalcular el mapa
+  useEffect(() => { setTimeout(() => map.current?.invalidateSize(), 260); }, [collapsed, trip]);
 
   // ---- Mapa + geolocalización ----
   useEffect(() => {
@@ -170,15 +174,17 @@ export default function Driver() {
 
       <div className="map-wrap"><div className="map" ref={mapDiv} /></div>
 
-      <div className="sheet">
-        <div className="grip" />
+      <div className={`sheet${collapsed ? ' collapsed' : ''}`}>
+        <div className="sheet-head">
+          <div className="grip" onClick={() => trip && setCollapsed((c) => !c)} />
+          {trip && (
+            <button className="sheet-toggle" onClick={() => setCollapsed((c) => !c)}>
+              {collapsed ? <><ChevronUp /> Ver detalles</> : <><ChevronDown /> Agrandar mapa</>}
+            </button>
+          )}
+        </div>
         {trip ? (
           <>
-            <div className="row mb">
-              <div className="avatar">{initials(trip.passenger_name)}</div>
-              <div className="grow"><h3 style={{ margin: 0 }}>{trip.passenger_name}</h3><div className="muted">{es(trip.status)}</div></div>
-              {trip.passenger_phone && <a className="icon-btn" style={{ width: 40, height: 40, background: 'var(--go)', color: '#fff', borderColor: 'transparent' }} href={`tel:${trip.passenger_phone}`}><Phone /></a>}
-            </div>
             <NavGuide
               legKey={`${trip.id}:${trip.status === 'in_progress' ? 'dest' : 'pickup'}`}
               target={trip.status === 'in_progress'
@@ -186,15 +192,24 @@ export default function Driver() {
                 : { lat: Number(trip.origin_lat), lng: Number(trip.origin_lng) }}
               getPos={() => myPos.current}
             />
-            <div className="addr"><span className="adot o" /> <b>{trip.origin_address || 'Origen'}</b></div>
-            <div className="addr"><span className="adot d" /> <b>{trip.dest_address || 'Destino'}</b></div>
-            <div className="fare-box">
-              <div><div className="amt tnum">{money(trip.fare)}</div><div className="meta">{trip.distance_km} km</div></div>
-              <a className="btn secondary small" target="_blank" rel="noreferrer"
-                 href={`https://www.openstreetmap.org/directions?from=${myPos.current ? myPos.current.lat + ',' + myPos.current.lng : ''}&to=${navTo}`}><Navigation /> Navegar</a>
-            </div>
+            {!collapsed && (
+              <>
+                <div className="row mb">
+                  <div className="avatar sm">{initials(trip.passenger_name)}</div>
+                  <div className="grow"><b>{trip.passenger_name}</b><div className="muted">{es(trip.status)}</div></div>
+                  {trip.passenger_phone && <a className="icon-btn" style={{ width: 40, height: 40, background: 'var(--go)', color: '#fff', borderColor: 'transparent' }} href={`tel:${trip.passenger_phone}`}><Phone /></a>}
+                </div>
+                <div className="addr"><span className="adot o" /> <b>{trip.origin_address || 'Origen'}</b></div>
+                <div className="addr"><span className="adot d" /> <b>{trip.dest_address || 'Destino'}</b></div>
+                <div className="fare-box">
+                  <div><div className="amt tnum">{money(trip.fare)}</div><div className="meta">{trip.distance_km} km</div></div>
+                  <a className="btn secondary small" target="_blank" rel="noreferrer"
+                     href={`https://www.openstreetmap.org/directions?from=${myPos.current ? myPos.current.lat + ',' + myPos.current.lng : ''}&to=${navTo}`}><Navigation /> Navegar</a>
+                </div>
+              </>
+            )}
             {next && <button className="btn accent" onClick={() => setTripStatus(trip.id, next.status)}>{next.icon} {next.label}</button>}
-            {trip.status !== 'in_progress' && <button className="btn ghost small mt" style={{ width: '100%' }} onClick={() => setTripStatus(trip.id, 'cancelled')}>Cancelar viaje</button>}
+            {!collapsed && trip.status !== 'in_progress' && <button className="btn ghost small mt" style={{ width: '100%' }} onClick={() => setTripStatus(trip.id, 'cancelled')}>Cancelar viaje</button>}
           </>
         ) : status === 'offline' ? (
           <div className="center" style={{ padding: '8px 0 4px' }}>
