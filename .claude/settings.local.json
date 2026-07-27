@@ -75,7 +75,10 @@
       "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('  routed:',d['routed'],'| km:',d['distance_km'],'| ETA:',d['minutes'],'min'\\)\")",
       "Bash(curl -s -o /dev/null -w \"web local -> %{http_code}\\\\n\" localhost:8080/)",
       "Bash(curl -s -o /dev/null -w \"web -> %{http_code}\\\\n\" localhost:8080/)",
-      "Bash(docker rm *)"
+      "Bash(docker rm *)",
+      "Bash(curl -s \"https://router.project-osrm.org/route/v1/driving/-71.63616,-33.03102;-71.63513,-33.02081?overview=false&alternatives=3\")",
+      "Bash(curl -s \"https://router.project-osrm.org/route/v1/driving/-71.63513,-33.02081;-71.63616,-33.03102?overview=false\")",
+      "Bash(python -c \"import sys,json;r=json.load\\(sys.stdin\\)['routes'][0];print\\('  ',round\\(r['distance']/1000,2\\),'km ·',round\\(r['duration']/60\\),'min'\\)\")"
     ]
   }
 }

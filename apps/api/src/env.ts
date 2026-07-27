@@ -14,7 +14,9 @@ export const env = {
   FARE_MINIMUM: 1500,
   // Radio de búsqueda de conductores (metros)
   SEARCH_RADIUS_M: 8000,
-  // Motor de ruteo (OSRM). Público por defecto; en producción usa el propio.
+  // Motor de ruteo: 'osrm' (OpenStreetMap, gratis) o 'google' (Directions API).
+  ROUTING_PROVIDER: (process.env.ROUTING_PROVIDER ?? 'osrm').toLowerCase(),
+  GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? '',
   OSRM_URL: process.env.OSRM_URL ?? 'https://router.project-osrm.org',
   OSRM_TIMEOUT_MS: Number(process.env.OSRM_TIMEOUT_MS ?? 6000),
   // Radio máx. (m) para encajar un punto a la red vial; fuera de eso -> sin ruta

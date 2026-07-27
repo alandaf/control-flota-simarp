@@ -43,7 +43,7 @@ export async function tripRoutes(app: FastifyInstance) {
       minutes: route.durationMin,
       fare: estimateFare(route.distanceKm, route.durationMin, tariff),
       geometry: route.geometry,
-      routed: route.source === 'osrm',
+      routed: route.source !== 'straight',
     };
   });
 
@@ -60,7 +60,7 @@ export async function tripRoutes(app: FastifyInstance) {
       geometry: route.geometry,
       distance_km: route.distanceKm,
       minutes: route.durationMin,
-      routed: route.source === 'osrm',
+      routed: route.source !== 'straight',
       steps: route.steps ?? [],
     };
   });
