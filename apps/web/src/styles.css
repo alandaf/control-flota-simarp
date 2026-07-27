@@ -401,6 +401,55 @@ tr:last-child td { border-bottom: none; }
 .sheet-toggle svg { width: 14px; height: 14px; }
 .sheet.collapsed { max-height: none; }
 
+/* ---------- Dashboard de negocio ---------- */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 13px 15px; box-shadow: var(--sh-xs); }
+.kpi .kv { font-size: 22px; font-weight: 750; letter-spacing: -0.03em; line-height: 1.1; }
+.kpi .kl { font-size: 11.5px; color: var(--muted); margin-top: 5px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
+.kpi .kl svg { width: 13px; height: 13px; }
+.kpi .kv.brand { color: var(--accent); } .kpi .kv.go { color: var(--go); } .kpi .kv.warn { color: var(--warn); }
+
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 15px 16px; margin-bottom: 12px; box-shadow: var(--sh-xs); }
+.chart-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.chart-head h4 { margin: 0; }
+.chart-head .big { font-size: 20px; font-weight: 750; letter-spacing: -0.02em; }
+.chart-head .sub { font-size: 12px; color: var(--muted); }
+.chart-x { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: 6px; }
+
+.tchart { display: block; }
+
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 130px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; height: 100%; min-width: 0; }
+.bar-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.bar { width: 100%; min-height: 2px; border-radius: 4px 4px 2px 2px; background: var(--accent); transition: height .3s; }
+.bar-lbl { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+
+.donut-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.donut { flex: 0 0 auto; }
+.donut-top { font-size: 22px; font-weight: 750; fill: var(--ink); letter-spacing: -0.03em; }
+.donut-sub { font-size: 10px; fill: var(--muted); }
+.donut-legend { display: flex; flex-direction: column; gap: 7px; font-size: 13px; }
+.leg { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.leg .dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+.leg b { margin-left: auto; padding-left: 12px; font-variant-numeric: tabular-nums; }
+
+.rank { display: flex; align-items: center; gap: 11px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.rank:last-child { border-bottom: none; }
+.rank .pos { width: 22px; height: 22px; border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 700; display: grid; place-items: center; flex: 0 0 auto; }
+.rank .pos.top { background: var(--ink); color: #fff; }
+.rank .rname { flex: 1; font-weight: 600; font-size: 14px; }
+.rank .rval { font-variant-numeric: tabular-nums; font-weight: 700; }
+.rank .rsub { font-size: 12px; color: var(--muted); }
+
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+.filters .f { display: flex; flex-direction: column; gap: 4px; }
+.filters .f label { margin: 0; font-size: 11px; }
+.filters input, .filters select { padding: 8px 10px; font-size: 13px; }
+.report-tot { display: flex; gap: 18px; flex-wrap: wrap; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); margin-bottom: 12px; }
+.report-tot .t { font-size: 12px; color: var(--muted); }
+.report-tot .t b { display: block; font-size: 17px; color: var(--ink); font-weight: 750; letter-spacing: -0.02em; }
+.seg-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; }
+
 /* ---------- Empty state ---------- */
 .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
 .empty svg { width: 30px; height: 30px; color: var(--faint); margin-bottom: 12px; }

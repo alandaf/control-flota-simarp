@@ -25,6 +25,73 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true, stats };
   });
 
+  // ---- Analítica de negocio (KPIs, series, distribuciones) ----
+  app.get('/analytics', async (req) => {
+    const days = Math.min(90, Math.max(7, Number((req.query as any)?.days ?? 30)));
+    const TZ = 'America/Santiago';
+
+    const kpis = await one<any>(`
+      SELECT
+        (SELECT COUNT(*) FROM trips)::int AS services_total,
+        (SELECT COUNT(*) FROM trips WHERE status='completed')::int AS completed,
+        (SELECT COUNT(*) FROM trips WHERE status='cancelled')::int AS cancelled,
+        (SELECT COUNT(*) FROM trips WHERE status IN ('requested','accepted','arrived','in_progress'))::int AS active,
+        (SELECT COALESCE(SUM(fare),0) FROM trips WHERE status='completed')::numeric AS revenue_total,
+        (SELECT COALESCE(SUM(fare),0) FROM trips WHERE status='completed'
+           AND (completed_at AT TIME ZONE '${TZ}') >= date_trunc('month', now() AT TIME ZONE '${TZ}'))::numeric AS revenue_month,
+        (SELECT COALESCE(SUM(distance_km),0) FROM trips WHERE status='completed')::numeric AS distance_total,
+        (SELECT COALESCE(AVG(fare),0) FROM trips WHERE status='completed')::numeric AS avg_fare,
+        (SELECT COALESCE(AVG(distance_km),0) FROM trips WHERE status='completed')::numeric AS avg_distance,
+        (SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at-started_at))/60),0) FROM trips
+           WHERE status='completed' AND started_at IS NOT NULL AND completed_at IS NOT NULL)::numeric AS avg_duration,
+        (SELECT COUNT(*) FROM users WHERE role='passenger')::int AS passengers,
+        (SELECT COUNT(*) FROM users WHERE role='driver')::int AS drivers,
+        (SELECT COUNT(*) FROM drivers WHERE status IN ('available','busy'))::int AS drivers_online,
+        (SELECT COUNT(*) FROM vehicles)::int AS vehicles,
+        (SELECT COALESCE(AVG(rating_avg),0) FROM drivers)::numeric AS avg_rating
+    `);
+
+    const daily = await query(`
+      SELECT (requested_at AT TIME ZONE '${TZ}')::date::text AS date,
+        COUNT(*)::int AS services,
+        COUNT(*) FILTER (WHERE status='completed')::int AS completed,
+        COALESCE(SUM(fare) FILTER (WHERE status='completed'),0)::numeric AS revenue,
+        COALESCE(SUM(distance_km) FILTER (WHERE status='completed'),0)::numeric AS km
+      FROM trips
+      WHERE requested_at >= now() - make_interval(days => $1)
+      GROUP BY 1 ORDER BY 1`, [days]);
+
+    const byStatus = await query(`SELECT status, COUNT(*)::int AS count FROM trips GROUP BY status`);
+    const byHour = await query(`
+      SELECT EXTRACT(hour FROM (requested_at AT TIME ZONE '${TZ}'))::int AS hour, COUNT(*)::int AS count
+      FROM trips GROUP BY 1 ORDER BY 1`);
+    const byWeekday = await query(`
+      SELECT EXTRACT(dow FROM (requested_at AT TIME ZONE '${TZ}'))::int AS dow, COUNT(*)::int AS count
+      FROM trips GROUP BY 1 ORDER BY 1`);
+    const topDrivers = await query(`
+      SELECT u.name,
+        COUNT(*)::int AS trips,
+        COALESCE(SUM(t.fare),0)::numeric AS revenue,
+        COALESCE(SUM(t.distance_km),0)::numeric AS km,
+        COALESCE(d.rating_avg,5)::numeric AS rating
+      FROM trips t JOIN users u ON u.id=t.driver_id LEFT JOIN drivers d ON d.user_id=u.id
+      WHERE t.status='completed'
+      GROUP BY u.id, u.name, d.rating_avg
+      ORDER BY trips DESC LIMIT 8`);
+
+    // pg ya entrega números (casts ::int / ::numeric) y textos como texto.
+    return {
+      ok: true,
+      days,
+      kpis,
+      daily,
+      by_status: byStatus,
+      by_hour: byHour,
+      by_weekday: byWeekday,
+      top_drivers: topDrivers,
+    };
+  });
+
   // ---- Conductores para el mapa en vivo ----
   app.get('/drivers_map', async () => {
     const drivers = await query(`
@@ -172,15 +239,31 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
-  // ---- Viajes ----
-  app.get('/trips', async () => {
+  // ---- Viajes / reporte de servicios (con filtros) ----
+  app.get('/trips', async (req) => {
+    const TZ = 'America/Santiago';
+    const q = req.query as any;
+    const cond: string[] = [];
+    const params: any[] = [];
+    if (q?.from) { params.push(q.from); cond.push(`(t.requested_at AT TIME ZONE '${TZ}')::date >= $${params.length}::date`); }
+    if (q?.to) { params.push(q.to); cond.push(`(t.requested_at AT TIME ZONE '${TZ}')::date <= $${params.length}::date`); }
+    if (['requested', 'accepted', 'arrived', 'in_progress', 'completed', 'cancelled'].includes(q?.status)) {
+      params.push(q.status); cond.push(`t.status = $${params.length}`);
+    }
+    if (q?.driver_id) { params.push(Number(q.driver_id)); cond.push(`t.driver_id = $${params.length}`); }
+    const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
+
     const trips = await query(`
-      SELECT t.id, t.status, t.distance_km, t.fare, t.requested_at,
-        p.name AS passenger_name, d.name AS driver_name
+      SELECT t.id, t.status, t.distance_km, t.fare, t.requested_at, t.completed_at,
+        t.origin_address, t.dest_address,
+        p.name AS passenger_name, d.name AS driver_name, v.plate
       FROM trips t
       JOIN users p ON p.id = t.passenger_id
       LEFT JOIN users d ON d.id = t.driver_id
-      ORDER BY t.id DESC LIMIT 100`);
+      LEFT JOIN drivers dr ON dr.user_id = t.driver_id
+      LEFT JOIN vehicles v ON v.id = dr.vehicle_id
+      ${where}
+      ORDER BY t.id DESC LIMIT 1000`, params);
     return { ok: true, trips };
   });
 }

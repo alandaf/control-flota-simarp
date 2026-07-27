@@ -4,9 +4,15 @@ import { createMap, driverMarkerIcon, SANTIAGO } from '../lib/mapkit';
 import { api, es, initials, money } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
-import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star } from '../components/Icons';
+import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle } from '../components/Icons';
+import { TrendChart, Bars, Donut } from '../components/Charts';
 
 type View = 'dashboard' | 'map' | 'trips' | 'drivers' | 'vehicles' | 'users';
+
+// Formateadores
+const cl = (n: number) => Number(n || 0).toLocaleString('es-CL');
+const money0 = (n: number) => '$' + cl(Math.round(n || 0));
+const moneyK = (n: number) => (n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + Math.round(n / 1000) + 'K' : '$' + cl(Math.round(n)));
 
 export default function Admin() {
   const { user, logout } = useAuth();
@@ -44,35 +50,128 @@ export default function Admin() {
   );
 }
 
+const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const STATUS_COLORS: Record<string, string> = {
+  completed: '#10b981', cancelled: '#e5484d', requested: '#f59e0b',
+  accepted: '#3b82f6', arrived: '#3b82f6', in_progress: '#635bff',
+};
+
+function fillDaily(daily: any[], days: number) {
+  const map = new Map(daily.map((d) => [d.date, d]));
+  const out: any[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const dt = new Date(today); dt.setDate(today.getDate() - i);
+    const key = dt.toLocaleDateString('en-CA'); // YYYY-MM-DD local
+    out.push(map.get(key) || { date: key, services: 0, completed: 0, revenue: 0, km: 0 });
+  }
+  return out;
+}
+const fmtDay = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
+
 function Dashboard({ onGo }: { onGo: (v: View) => void }) {
-  const [stats, setStats] = useState<any>(null);
+  const [data, setData] = useState<any>(null);
+  const [days, setDays] = useState(30);
   useEffect(() => {
-    const load = () => api<{ stats: any }>('/api/admin/stats').then((d) => setStats(d.stats)).catch(() => {});
-    load(); const iv = setInterval(load, 5000); return () => clearInterval(iv);
-  }, []);
-  if (!stats) return <div className="spinner center" />;
-  const cell = (n: any, l: string, cls = '') => (
-    <div className="stat"><div className={`n tnum ${cls}`}>{n}</div><div className="l">{l}</div></div>
+    let alive = true;
+    const load = () => api<any>(`/api/admin/analytics?days=${days}`).then((d) => { if (alive) setData(d); }).catch(() => {});
+    load(); const iv = setInterval(load, 8000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [days]);
+
+  if (!data) return <div className="spinner center" />;
+  const k = data.kpis;
+  const daily = fillDaily(data.daily, data.days);
+  const completionRate = k.services_total ? Math.round((k.completed / k.services_total) * 100) : 0;
+
+  const hours = Array.from({ length: 24 }, (_, h) => ({ label: String(h), value: data.by_hour.find((x: any) => x.hour === h)?.count || 0 }));
+  const week = Array.from({ length: 7 }, (_, d) => ({ label: WEEKDAYS[d], value: data.by_weekday.find((x: any) => x.dow === d)?.count || 0 }));
+  const statusSlices = data.by_status.map((s: any) => ({ label: es(s.status), value: s.count, color: STATUS_COLORS[s.status] || '#a1a1aa' }));
+
+  const kpi = (v: string, l: string, icon?: JSX.Element, cls = '') => (
+    <div className="kpi"><div className={`kv ${cls}`}>{v}</div><div className="kl">{icon}{l}</div></div>
   );
+
   return (
     <>
-      <div className="stat-grid">
-        {cell(stats.trips_today, 'Viajes hoy', 'brand')}
-        {cell(stats.trips_active, 'Viajes activos')}
-        {cell(money(stats.revenue_today), 'Ingresos hoy')}
-        {cell(stats.trips_total, 'Viajes totales')}
-        {cell(stats.drivers_online, 'Conductores en línea', 'go')}
-        {cell(stats.drivers_total, 'Conductores')}
-        {cell(stats.passengers, 'Pasajeros')}
-        {cell(stats.vehicles, 'Vehículos')}
-      </div>
-      <div className="card mt">
-        <h4>Accesos rápidos</h4>
-        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn small" onClick={() => onGo('map')}>Ver mapa en vivo</button>
-          <button className="btn small secondary" onClick={() => onGo('trips')}>Viajes recientes</button>
-          <button className="btn small secondary" onClick={() => onGo('vehicles')}>Gestionar flota</button>
+      <div className="between mb">
+        <div className="row" style={{ gap: 6 }}>
+          {[7, 30, 90].map((d) => (
+            <button key={d} className={`chiptab ${days === d ? 'active' : ''}`} onClick={() => setDays(d)}>{d} días</button>
+          ))}
         </div>
+        <button className="btn small secondary" onClick={() => onGo('trips')}>📄 Reporte</button>
+      </div>
+
+      {/* KPIs de negocio */}
+      <div className="kpi-grid">
+        {kpi(cl(k.completed), 'Servicios completados', <CheckCircle />, 'go')}
+        {kpi(money0(k.revenue_total), 'Ingresos totales', <Route />, 'brand')}
+        {kpi(money0(k.revenue_month), 'Ingresos del mes')}
+        {kpi(cl(Math.round(k.distance_total)) + ' km', 'Distancia recorrida')}
+        {kpi(money0(k.avg_fare), 'Tarifa promedio')}
+        {kpi(Math.round(k.avg_duration) + ' min', 'Duración promedio', <Clock />)}
+        {kpi(completionRate + '%', 'Tasa de completación')}
+        {kpi(k.avg_rating.toFixed(2), 'Calificación promedio', <Star />, 'warn')}
+        {kpi(cl(k.active), 'Servicios activos ahora')}
+        {kpi(cl(k.drivers_online) + '/' + cl(k.drivers), 'Conductores en línea')}
+      </div>
+
+      {/* Tendencia de servicios */}
+      <div className="chart-card">
+        <div className="chart-head">
+          <h4>Servicios por día</h4>
+          <div><div className="big">{cl(daily.reduce((s, d) => s + d.services, 0))}</div><div className="sub">últimos {data.days} días</div></div>
+        </div>
+        <TrendChart data={daily.map((d) => ({ label: d.date, value: d.services }))} color="#635bff" />
+        <div className="chart-x"><span>{fmtDay(daily[0].date)}</span><span>{fmtDay(daily[daily.length - 1].date)}</span></div>
+      </div>
+
+      {/* Tendencia de ingresos */}
+      <div className="chart-card">
+        <div className="chart-head">
+          <h4>Ingresos por día</h4>
+          <div><div className="big">{money0(daily.reduce((s, d) => s + d.revenue, 0))}</div><div className="sub">completados</div></div>
+        </div>
+        <TrendChart data={daily.map((d) => ({ label: d.date, value: d.revenue }))} color="#10b981" />
+        <div className="chart-x"><span>{fmtDay(daily[0].date)}</span><span>{fmtDay(daily[daily.length - 1].date)}</span></div>
+      </div>
+
+      {/* Estado de los servicios */}
+      <div className="chart-card">
+        <div className="chart-head"><h4>Estado de los servicios</h4></div>
+        <Donut slices={statusSlices} centerTop={cl(k.services_total)} centerSub="total" />
+      </div>
+
+      {/* Horas pico */}
+      <div className="chart-card">
+        <div className="chart-head"><h4>Demanda por hora</h4><div className="sub">hora del día</div></div>
+        <Bars data={hours} color="#635bff" fmt={(n) => `${n} servicios`} />
+      </div>
+
+      {/* Día de la semana */}
+      <div className="chart-card">
+        <div className="chart-head"><h4>Servicios por día de la semana</h4></div>
+        <Bars data={week} color="#3b82f6" fmt={(n) => `${n} servicios`} />
+      </div>
+
+      {/* Ranking de conductores */}
+      <div className="chart-card">
+        <div className="chart-head"><h4>Ranking de conductores</h4><div className="sub">por servicios</div></div>
+        {data.top_drivers.length === 0 ? <p className="muted">Aún no hay servicios completados.</p> :
+          data.top_drivers.map((d: any, i: number) => (
+            <div className="rank" key={i}>
+              <div className={`pos ${i === 0 ? 'top' : ''}`}>{i + 1}</div>
+              <div className="grow">
+                <div className="rname">{d.name}</div>
+                <div className="rsub">{cl(Math.round(d.km))} km · ⭐ {Number(d.rating).toFixed(1)}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div className="rval tnum">{cl(d.trips)}</div>
+                <div className="rsub">{money0(d.revenue)}</div>
+              </div>
+            </div>
+          ))}
       </div>
     </>
   );
@@ -118,26 +217,87 @@ function LiveMap() {
 
 function Trips() {
   const [trips, setTrips] = useState<any[]>([]);
-  useEffect(() => { api<{ trips: any[] }>('/api/admin/trips').then((d) => setTrips(d.trips)).catch(() => {}); }, []);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [status, setStatus] = useState('');
+
+  const load = () => {
+    const qs = new URLSearchParams();
+    if (from) qs.set('from', from);
+    if (to) qs.set('to', to);
+    if (status) qs.set('status', status);
+    api<{ trips: any[] }>(`/api/admin/trips?${qs.toString()}`).then((d) => setTrips(d.trips)).catch(() => {});
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [from, to, status]);
+
+  const completed = trips.filter((t) => t.status === 'completed');
+  const totalRevenue = completed.reduce((s, t) => s + (t.fare || 0), 0);
+  const totalKm = completed.reduce((s, t) => s + Number(t.distance_km || 0), 0);
+
+  function exportCSV() {
+    const head = ['ID', 'Fecha', 'Pasajero', 'Conductor', 'Patente', 'Origen', 'Destino', 'Km', 'Tarifa', 'Estado'];
+    const rows = trips.map((t) => [
+      t.id, String(t.requested_at || '').slice(0, 16).replace('T', ' '),
+      t.passenger_name || '', t.driver_name || '', t.plate || '',
+      t.origin_address || '', t.dest_address || '', t.distance_km ?? '', t.fare ?? '', es(t.status),
+    ]);
+    const esc = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = '﻿' + [head, ...rows].map((r) => r.map(esc).join(';')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `servicios_${from || 'todo'}_${to || 'hoy'}.csv`;
+    a.click();
+  }
+
   return (
-    <div className="card">
-      <h4>Viajes ({trips.length})</h4>
-      <div style={{ overflowX: 'auto' }}>
-        <table>
-          <thead><tr><th>#</th><th>Pasajero</th><th>Conductor</th><th>Estado</th><th>Km</th><th>Tarifa</th><th>Fecha</th></tr></thead>
-          <tbody>
-            {trips.map((t) => (
-              <tr key={t.id}>
-                <td>{t.id}</td><td>{t.passenger_name}</td><td>{t.driver_name || '—'}</td>
-                <td><span className={`badge ${t.status}`}>{es(t.status)}</span></td>
-                <td>{t.distance_km ?? '—'}</td><td>{money(t.fare)}</td>
-                <td className="muted">{String(t.requested_at || '').slice(0, 16).replace('T', ' ')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <>
+      <div className="filters">
+        <div className="f"><label>Desde</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+        <div className="f"><label>Hasta</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+        <div className="f"><label>Estado</label>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Todos</option>
+            <option value="completed">Completado</option>
+            <option value="cancelled">Cancelado</option>
+            <option value="in_progress">En viaje</option>
+            <option value="requested">Solicitado</option>
+          </select>
+        </div>
+        {(from || to || status) && <button className="btn small ghost" onClick={() => { setFrom(''); setTo(''); setStatus(''); }}>Limpiar</button>}
+        <button className="btn small" onClick={exportCSV}>⬇ Exportar CSV</button>
       </div>
-    </div>
+
+      <div className="report-tot">
+        <div className="t">Servicios<b>{cl(trips.length)}</b></div>
+        <div className="t">Completados<b>{cl(completed.length)}</b></div>
+        <div className="t">Ingresos (facturable)<b>{money0(totalRevenue)}</b></div>
+        <div className="t">Distancia<b>{cl(Math.round(totalKm))} km</b></div>
+      </div>
+
+      <div className="card">
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead><tr><th>#</th><th>Fecha</th><th>Pasajero</th><th>Conductor</th><th>Patente</th><th>Km</th><th>Tarifa</th><th>Estado</th></tr></thead>
+            <tbody>
+              {trips.length === 0 ? <tr><td colSpan={8} className="muted center" style={{ padding: 24 }}>Sin servicios en el período.</td></tr> :
+                trips.map((t) => (
+                  <tr key={t.id}>
+                    <td>{t.id}</td>
+                    <td className="muted">{String(t.requested_at || '').slice(0, 16).replace('T', ' ')}</td>
+                    <td>{t.passenger_name}</td>
+                    <td>{t.driver_name || '—'}</td>
+                    <td className="muted">{t.plate || '—'}</td>
+                    <td>{t.distance_km ?? '—'}</td>
+                    <td className="tnum">{money0(t.fare || 0)}</td>
+                    <td><span className={`badge ${t.status}`}>{es(t.status)}</span></td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }
 
