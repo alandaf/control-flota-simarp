@@ -4,7 +4,8 @@ import { createMap, icons, SANTIAGO } from '../lib/mapkit';
 import { api, es, money, initials } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
-import { Wheel, LogOut, Power, Pin, Flag, Phone, Navigation, Check, Play, CheckCircle, Search } from '../components/Icons';
+import { Wheel, LogOut, Power, Phone, Navigation, Check, Play, CheckCircle, Search } from '../components/Icons';
+import NavGuide from '../components/NavGuide';
 
 export default function Driver() {
   const { logout } = useAuth();
@@ -40,6 +41,8 @@ export default function Driver() {
         myPos.current = p;
         if (meMarker.current) meMarker.current.setLatLng([p.lat, p.lng]);
         else { meMarker.current = L.marker([p.lat, p.lng], { icon: icons.taxi }).addTo(m); m.setView([p.lat, p.lng], 15); }
+        // Durante un viaje, el mapa sigue al conductor (modo navegación)
+        if (tripRef.current) m.panTo([p.lat, p.lng], { animate: true, duration: 0.5 });
         if (onlineRef.current && Date.now() - lastPush.current > 3000) {
           lastPush.current = Date.now();
           getSocket().emit('driver:location', { lat: p.lat, lng: p.lng, heading: pos.coords.heading ?? undefined });
@@ -176,6 +179,13 @@ export default function Driver() {
               <div className="grow"><h3 style={{ margin: 0 }}>{trip.passenger_name}</h3><div className="muted">{es(trip.status)}</div></div>
               {trip.passenger_phone && <a className="icon-btn" style={{ width: 40, height: 40, background: 'var(--go)', color: '#fff', borderColor: 'transparent' }} href={`tel:${trip.passenger_phone}`}><Phone /></a>}
             </div>
+            <NavGuide
+              legKey={`${trip.id}:${trip.status === 'in_progress' ? 'dest' : 'pickup'}`}
+              target={trip.status === 'in_progress'
+                ? { lat: Number(trip.dest_lat), lng: Number(trip.dest_lng) }
+                : { lat: Number(trip.origin_lat), lng: Number(trip.origin_lng) }}
+              getPos={() => myPos.current}
+            />
             <div className="addr"><span className="adot o" /> <b>{trip.origin_address || 'Origen'}</b></div>
             <div className="addr"><span className="adot d" /> <b>{trip.dest_address || 'Destino'}</b></div>
             <div className="fare-box">

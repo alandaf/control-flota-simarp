@@ -358,6 +358,40 @@ tr:last-child td { border-bottom: none; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 
+/* ---------- Buscador de direcciones ---------- */
+.searchbox { position: relative; }
+.searchbox input { padding-left: 38px; }
+.sb-dot { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; display: grid; place-items: center; color: var(--muted); pointer-events: none; z-index: 2; }
+.sb-dot svg { width: 16px; height: 16px; }
+.sb-dot.o::before, .sb-dot.d::before { content: ''; width: 11px; height: 11px; border-radius: 50%; }
+.sb-dot.o::before { background: var(--ink); box-shadow: 0 0 0 3px var(--surface-3); }
+.sb-dot.d::before { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.sb-list { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--sh-md); z-index: 50; overflow: hidden; max-height: 244px; overflow-y: auto; }
+.sb-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; font-size: 14px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.sb-item:last-child { border-bottom: none; }
+.sb-item:hover { background: var(--surface-2); }
+.sb-item svg { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; }
+.sb-item.muted { color: var(--muted); cursor: default; }
+.sb-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.chiptab { border: 1px solid var(--line-2); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.chiptab.active { border-color: var(--ink); background: var(--ink); color: #fff; }
+
+/* ---------- Botón flotante (seguir vehículo) ---------- */
+.map-fab { position: absolute; right: 14px; bottom: 16px; z-index: 600; display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); border-radius: 999px; font-weight: 600; font-size: 13px; box-shadow: var(--sh-md); cursor: pointer; }
+.map-fab:active { transform: scale(.97); }
+.map-fab svg { width: 16px; height: 16px; color: var(--accent); }
+
+/* ---------- Navegación giro a giro (conductor) ---------- */
+.nav-banner { display: flex; align-items: center; gap: 14px; padding: 13px 15px; background: var(--ink); color: #fff; border-radius: var(--r); margin-bottom: 12px; }
+.nav-arrow { width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center; background: rgba(255,255,255,.10); border-radius: 12px; }
+.nav-arrow svg { width: 30px; height: 30px; }
+.nav-text { flex: 1; min-width: 0; }
+.nav-dist { font-size: 21px; font-weight: 750; letter-spacing: -0.03em; line-height: 1; }
+.nav-instr { font-size: 13.5px; opacity: .9; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-mute { width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); color: #fff; display: grid; place-items: center; cursor: pointer; flex: 0 0 auto; }
+.nav-mute svg { width: 18px; height: 18px; }
+
 /* ---------- Empty state ---------- */
 .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
 .empty svg { width: 30px; height: 30px; color: var(--faint); margin-bottom: 12px; }

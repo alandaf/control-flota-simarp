@@ -49,16 +49,26 @@ export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Geocodificación inversa (Nominatim / OpenStreetMap). */
+/** Geocodificación inversa (coordenada -> dirección) vía nuestro proxy. */
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
-    const r = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`,
-      { headers: { 'Accept-Language': 'es' } }
-    );
-    const d = await r.json();
-    return d.display_name ? d.display_name.split(',').slice(0, 3).join(',') : `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const d = await api<{ label: string }>(`/api/geo/reverse?lat=${lat}&lng=${lng}`);
+    return d.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   } catch {
     return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+}
+
+export interface GeoResult { label: string; full: string; lat: number; lng: number; }
+
+/** Búsqueda de direcciones (autocompletar). viewbox: "minLng,minLat,maxLng,maxLat". */
+export async function geoSearch(q: string, viewbox?: string): Promise<GeoResult[]> {
+  try {
+    const qs = new URLSearchParams({ q });
+    if (viewbox) qs.set('viewbox', viewbox);
+    const d = await api<{ results: GeoResult[] }>(`/api/geo/search?${qs.toString()}`);
+    return d.results || [];
+  } catch {
+    return [];
   }
 }

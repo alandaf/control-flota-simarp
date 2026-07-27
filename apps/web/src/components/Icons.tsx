@@ -81,3 +81,27 @@ export const Clock = (p: P) => (
 export const Play = (p: P) => (
   <svg {...base({ ...p, fill: 'currentColor', stroke: 'none' })}><path d="M7 4.5v15l12-7.5L7 4.5Z" /></svg>
 );
+export const Locate = (p: P) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>
+);
+export const Volume = (p: P) => (
+  <svg {...base(p)}><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="M16 8.5a4 4 0 0 1 0 7M18.5 6a7 7 0 0 1 0 12" /></svg>
+);
+export const VolumeOff = (p: P) => (
+  <svg {...base(p)}><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="m17 9 4 6M21 9l-4 6" /></svg>
+);
+
+// Flecha de maniobra según la dirección de OSRM
+export function Maneuver({ type, modifier, ...p }: P & { type?: string; modifier?: string }) {
+  if (type === 'arrive') return <Flag {...p} />;
+  if (type === 'roundabout' || type === 'rotary')
+    return <svg {...base(p)}><circle cx="12" cy="13" r="5" /><path d="M12 8V3M12 3l-2.5 2.5M12 3l2.5 2.5" /></svg>;
+  const m = modifier || 'straight';
+  if (m.includes('uturn')) return <svg {...base(p)}><path d="M8 20V10a4 4 0 0 1 8 0v3" /><path d="m19 13-3 3-3-3" /></svg>;
+  if (m === 'left' || m === 'sharp left') return <svg {...base(p)}><path d="M20 18v-4a4 4 0 0 0-4-4H5" /><path d="m9 6-4 4 4 4" /></svg>;
+  if (m === 'right' || m === 'sharp right') return <svg {...base(p)}><path d="M4 18v-4a4 4 0 0 1 4-4h11" /><path d="m15 6 4 4-4 4" /></svg>;
+  if (m === 'slight left') return <svg {...base(p)}><path d="M18 20V9a3 3 0 0 0-3-3H8" /><path d="m11 3-3 3 3 3" /></svg>;
+  if (m === 'slight right') return <svg {...base(p)}><path d="M6 20V9a3 3 0 0 1 3-3h7" /><path d="m13 3 3 3-3 3" /></svg>;
+  // recto
+  return <svg {...base(p)}><path d="M12 21V4" /><path d="m7 9 5-5 5 5" /></svg>;
+}

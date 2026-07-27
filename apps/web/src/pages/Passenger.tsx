@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import { createMap, icons, SANTIAGO } from '../lib/mapkit';
-import { api, es, money, reverseGeocode, initials } from '../lib/api';
+import { api, es, money, reverseGeocode, initials, type GeoResult } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
-import { Logo, User, LogOut, Pin, Flag, Phone, Car, CheckCircle, Route, Star, StarOutline, Clock } from '../components/Icons';
+import { Logo, User, LogOut, Pin, Flag, Phone, Car, CheckCircle, Route, Star, StarOutline, Clock, Locate } from '../components/Icons';
+import SearchBox from '../components/SearchBox';
 
 type Pt = { lat: number; lng: number; address?: string };
 
@@ -20,6 +21,8 @@ export default function Passenger() {
   const line = useRef<L.Polyline | null>(null);
   const joinedTrip = useRef<number | null>(null);
   const routeKey = useRef<string>(''); // ruta REAL ya dibujada para este viaje+estado
+  const following = useRef(true);      // el mapa sigue al vehículo
+  const [showRecenter, setShowRecenter] = useState(false);
 
   const [origin, setOrigin] = useState<Pt | null>(null);
   const [dest, setDest] = useState<Pt | null>(null);
@@ -44,6 +47,11 @@ export default function Passenger() {
       if (tripRef.current) return;
       if (pickModeRef.current === 'origin') placeOrigin(e.latlng.lat, e.latlng.lng);
       else placeDest(e.latlng.lat, e.latlng.lng);
+    });
+
+    // Si el usuario arrastra el mapa durante un viaje, dejamos de seguir al auto
+    m.on('dragstart', () => {
+      if (tripRef.current && carMarker.current) { following.current = false; setShowRecenter(true); }
     });
 
     if (navigator.geolocation) {
@@ -98,26 +106,42 @@ export default function Passenger() {
   }
 
   // ---- Markers de origen / destino ----
-  async function placeOrigin(lat: number, lng: number) {
+  async function placeOrigin(lat: number, lng: number, address?: string) {
     const m = map.current!;
     if (oMarker.current) oMarker.current.setLatLng([lat, lng]);
     else {
       oMarker.current = L.marker([lat, lng], { icon: icons.origin, draggable: true }).addTo(m);
       oMarker.current.on('dragend', (ev) => { const p = (ev.target as L.Marker).getLatLng(); placeOrigin(p.lat, p.lng); });
     }
-    const address = await reverseGeocode(lat, lng);
-    setOrigin({ lat, lng, address });
+    const addr = address ?? await reverseGeocode(lat, lng);
+    setOrigin({ lat, lng, address: addr });
     setPickMode('dest');
   }
-  async function placeDest(lat: number, lng: number) {
+  async function placeDest(lat: number, lng: number, address?: string) {
     const m = map.current!;
     if (dMarker.current) dMarker.current.setLatLng([lat, lng]);
     else {
       dMarker.current = L.marker([lat, lng], { icon: icons.dest, draggable: true }).addTo(m);
       dMarker.current.on('dragend', (ev) => { const p = (ev.target as L.Marker).getLatLng(); placeDest(p.lat, p.lng); });
     }
-    const address = await reverseGeocode(lat, lng);
-    setDest({ lat, lng, address });
+    const addr = address ?? await reverseGeocode(lat, lng);
+    setDest({ lat, lng, address: addr });
+  }
+
+  // Selección desde el buscador: fija el punto y centra el mapa ahí
+  function onSearchOrigin(r: GeoResult) { placeOrigin(r.lat, r.lng, r.label); map.current?.setView([r.lat, r.lng], 16); }
+  function onSearchDest(r: GeoResult) { placeDest(r.lat, r.lng, r.label); map.current?.setView([r.lat, r.lng], 16); }
+
+  function mapViewbox(): string | undefined {
+    const m = map.current; if (!m) return undefined;
+    const b = m.getBounds();
+    return `${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`;
+  }
+
+  function recenterOnCar() {
+    following.current = true; setShowRecenter(false);
+    const pos = carMarker.current?.getLatLng();
+    if (pos && map.current) map.current.setView(pos, Math.max(map.current.getZoom(), 15), { animate: true });
   }
 
   // ---- Estimación + ruta real cuando hay origen y destino ----
@@ -155,12 +179,13 @@ export default function Passenger() {
         dest_lat: Number(t.dest_lat), dest_lng: Number(t.dest_lng),
       });
       if (r.geometry && r.routed) {
-        drawRoute(r.geometry, true, firstDraw);
+        // No re-encuadrar: el mapa sigue al vehículo (evita saltos)
+        drawRoute(r.geometry, true, firstDraw && !carMarker.current);
         routeKey.current = key; // éxito: dejar de reintentar
         return;
       }
     } catch { /* reintenta en el próximo refresco */ }
-    if (!line.current) drawRoute([[Number(t.origin_lat), Number(t.origin_lng)], [Number(t.dest_lat), Number(t.dest_lng)]], false, true);
+    if (!line.current) drawRoute([[Number(t.origin_lat), Number(t.origin_lng)], [Number(t.dest_lat), Number(t.dest_lng)]], false, !carMarker.current);
   }
 
   function drawRoute(coords: [number, number][], routed = true, fit = true) {
@@ -175,10 +200,20 @@ export default function Passenger() {
 
   function moveCar(lat: number, lng: number) {
     const m = map.current!;
-    if (carMarker.current) carMarker.current.setLatLng([lat, lng]);
-    else carMarker.current = L.marker([lat, lng], { icon: icons.car }).addTo(m);
+    const pos: [number, number] = [lat, lng];
+    if (carMarker.current) {
+      carMarker.current.setLatLng(pos);
+      if (following.current) m.panTo(pos, { animate: true, duration: 0.6 });
+    } else {
+      carMarker.current = L.marker(pos, { icon: icons.car }).addTo(m);
+      following.current = true; setShowRecenter(false);
+      m.setView(pos, Math.max(m.getZoom(), 15), { animate: true });
+    }
   }
-  function removeCar() { if (carMarker.current) { map.current?.removeLayer(carMarker.current); carMarker.current = null; } }
+  function removeCar() {
+    if (carMarker.current) { map.current?.removeLayer(carMarker.current); carMarker.current = null; }
+    following.current = true; setShowRecenter(false);
+  }
 
   async function requestTrip() {
     if (!origin || !dest) return;
@@ -215,20 +250,28 @@ export default function Passenger() {
         </div>
       </div>
 
-      <div className="map-wrap"><div className="map" ref={mapDiv} /></div>
+      <div className="map-wrap">
+        <div className="map" ref={mapDiv} />
+        {showRecenter && (
+          <button className="map-fab" onClick={recenterOnCar} title="Centrar en el vehículo">
+            <Locate /> Seguir
+          </button>
+        )}
+      </div>
 
       <div className="sheet">
         <div className="grip" />
         {!trip ? (
           <>
-            <h3>¿A dónde vamos?</h3>
-            <p className="dim" style={{ margin: '2px 0 12px' }}>Toca el mapa para fijar los puntos.</p>
-            <div className="field-mode">
-              <button className={pickMode === 'origin' ? 'active' : ''} onClick={() => setPickMode('origin')}><Pin /> Origen</button>
-              <button className={pickMode === 'dest' ? 'active' : ''} onClick={() => setPickMode('dest')}><Flag /> Destino</button>
-            </div>
-            <div className={`addr${origin ? '' : ' placeholder'}`}><span className="adot o" /> <b>{origin?.address || 'Punto de partida'}</b></div>
-            <div className={`addr${dest ? '' : ' placeholder'}`}><span className="adot d" /> <b>{dest?.address || 'Destino'}</b></div>
+            <h3 className="mb">¿A dónde vamos?</h3>
+            <SearchBox placeholder="Punto de partida" dot="o" value={origin?.address} getViewbox={mapViewbox} onSelect={onSearchOrigin} />
+            <div style={{ height: 8 }} />
+            <SearchBox placeholder="¿A dónde vas?" dot="d" value={dest?.address} getViewbox={mapViewbox} onSelect={onSearchDest} />
+            <p className="dim" style={{ margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              O fija tocando el mapa:
+              <button className={`chiptab ${pickMode === 'origin' ? 'active' : ''}`} onClick={() => setPickMode('origin')}>Origen</button>
+              <button className={`chiptab ${pickMode === 'dest' ? 'active' : ''}`} onClick={() => setPickMode('dest')}>Destino</button>
+            </p>
             {fare && (
               <div className="fare-box">
                 <div><div className="amt tnum">{money(fare.fare)}</div><div className="meta">Tarifa estimada</div></div>

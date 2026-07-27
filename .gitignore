@@ -11,3 +11,6 @@ coverage/
 
 # Datos generados de OSRM (grandes, se preparan en cada servidor)
 osrm-data/
+
+# Notas privadas (secretos, credenciales) — NUNCA subir
+_privado/

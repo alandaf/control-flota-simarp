@@ -1,34 +1,67 @@
 import { env } from './env.js';
 import { haversineKm, estimateMinutes } from './fare.js';
 
+export interface NavStep {
+  lat: number;
+  lng: number;
+  instruction: string;   // texto en español
+  type: string;          // tipo de maniobra OSRM
+  modifier: string;      // dirección (left/right/…)
+  distance: number;      // metros del tramo
+  name: string;          // nombre de la vía
+}
+
 export interface RouteResult {
   distanceKm: number;
   durationMin: number;
   geometry: [number, number][]; // [lat, lng] para Leaflet
   source: 'osrm' | 'straight';
+  steps?: NavStep[];
+}
+
+const DIR: Record<string, string> = {
+  left: 'a la izquierda', right: 'a la derecha',
+  'slight left': 'ligeramente a la izquierda', 'slight right': 'ligeramente a la derecha',
+  'sharp left': 'cerrado a la izquierda', 'sharp right': 'cerrado a la derecha',
+  straight: 'recto', uturn: 'en U',
+};
+
+/** Convierte una maniobra de OSRM en una instrucción en español. */
+function instruction(m: any, name: string): string {
+  const dir = DIR[m?.modifier] ?? '';
+  const via = name ? ` por ${name}` : '';
+  switch (m?.type) {
+    case 'depart': return `Comienza${via}`;
+    case 'arrive': return 'Llegaste a tu destino';
+    case 'turn': return `Gira ${dir}${via}`;
+    case 'continue': return `Continúa ${dir || 'recto'}${via}`;
+    case 'merge': return `Incorpórate${via}`;
+    case 'on ramp': return `Toma la salida${via}`;
+    case 'off ramp': return `Sal${via}`;
+    case 'fork': return `Mantente ${dir || 'recto'}${via}`;
+    case 'end of road': return `Al final de la calle gira ${dir}${via}`;
+    case 'roundabout':
+    case 'rotary': return `Entra a la rotonda${via}`;
+    case 'new name': return `Sigue${via}`;
+    default: return `Continúa ${dir || 'recto'}${via}`;
+  }
 }
 
 /**
- * Calcula la ruta más corta por calle usando OSRM.
- * OSRM implementa el camino mínimo sobre el grafo vial real (contraction
- * hierarchies, una optimización de Dijkstra). Si el servicio no responde,
- * degrada a una línea recta con distancia Haversine.
+ * Calcula la ruta más corta por calle usando OSRM (Multi-Level Dijkstra).
+ * Con `withSteps` incluye las maniobras giro a giro. Si el servicio no
+ * responde, degrada a línea recta con distancia Haversine.
  */
 export async function getRoute(
-  oLat: number, oLng: number, dLat: number, dLng: number
+  oLat: number, oLng: number, dLat: number, dLng: number, withSteps = false
 ): Promise<RouteResult> {
-  // Distancia en línea recta: sirve de referencia para validar el resultado.
   const straightKm = haversineKm(oLat, oLng, dLat, dLng);
 
-  // radiuses limita cuánto puede "encajar" OSRM cada punto a la red vial. Así,
-  // coordenadas fuera del área cargada (p.ej. otra ciudad) devuelven error en
-  // lugar de una ruta absurda encajada al borde del mapa.
   const url =
     `${env.OSRM_URL}/route/v1/driving/${oLng},${oLat};${dLng},${dLat}` +
-    `?overview=full&geometries=geojson&alternatives=false&steps=false` +
+    `?overview=full&geometries=geojson&alternatives=false&steps=${withSteps}` +
     `&radiuses=${env.OSRM_SNAP_RADIUS_M};${env.OSRM_SNAP_RADIUS_M}`;
 
-  // Hasta 2 intentos antes de degradar (el OSRM público falla a veces)
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const ctrl = new AbortController();
@@ -43,24 +76,42 @@ export async function getRoute(
       if (!route) throw new Error('OSRM sin rutas');
 
       const distanceKm = +(route.distance / 1000).toFixed(2);
-      // Si la ruta es ~0 pero en recta hay distancia real, OSRM encajó mal: descartar.
       if (distanceKm < 0.05 && straightKm > 0.2) throw new Error('OSRM ruta degenerada');
 
       const coords: [number, number][] = (route.geometry.coordinates as [number, number][])
         .map(([lng, lat]) => [lat, lng]);
 
-      return {
+      const result: RouteResult = {
         distanceKm,
         durationMin: Math.max(1, Math.round(route.duration / 60)),
         geometry: coords,
         source: 'osrm',
       };
+
+      if (withSteps) {
+        const steps: NavStep[] = [];
+        for (const leg of route.legs ?? []) {
+          for (const s of leg.steps ?? []) {
+            const [lng, lat] = s.maneuver.location as [number, number];
+            steps.push({
+              lat, lng,
+              instruction: instruction(s.maneuver, s.name),
+              type: s.maneuver.type ?? '',
+              modifier: s.maneuver.modifier ?? '',
+              distance: Math.round(s.distance ?? 0),
+              name: s.name ?? '',
+            });
+          }
+        }
+        result.steps = steps;
+      }
+
+      return result;
     } catch {
       if (attempt === 0) await new Promise((r) => setTimeout(r, 300));
     }
   }
 
-  // Degradación: línea recta
   const km = +straightKm.toFixed(2);
   return {
     distanceKm: km,

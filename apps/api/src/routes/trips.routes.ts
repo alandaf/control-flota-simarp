@@ -45,17 +45,20 @@ export async function tripRoutes(app: FastifyInstance) {
   });
 
   // ---- Geometría de la ruta más corta entre dos puntos ----
+  // Con { steps: true } incluye las maniobras giro a giro (navegación).
   app.post('/route', { preHandler: authGuard() }, async (req, reply) => {
     const p = estimateSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ ok: false, error: 'Coordenadas inválidas' });
     const { origin_lat, origin_lng, dest_lat, dest_lng } = p.data;
-    const route = await getRoute(origin_lat, origin_lng, dest_lat, dest_lng);
+    const withSteps = Boolean((req.body as any)?.steps);
+    const route = await getRoute(origin_lat, origin_lng, dest_lat, dest_lng, withSteps);
     return {
       ok: true,
       geometry: route.geometry,
       distance_km: route.distanceKm,
       minutes: route.durationMin,
       routed: route.source === 'osrm',
+      steps: route.steps ?? [],
     };
   });
 
