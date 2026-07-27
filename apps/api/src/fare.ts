@@ -1,4 +1,4 @@
-import { env } from './env.js';
+import type { Tariff } from './tariffs.js';
 
 /** Distancia Haversine en kilómetros. */
 export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -11,11 +11,10 @@ export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Estima la tarifa (CLP) a partir de distancia (km) y duración (min). */
-export function estimateFare(distanceKm: number, minutes = 0): number {
-  const raw =
-    env.FARE_BASE + distanceKm * env.FARE_PER_KM + minutes * env.FARE_PER_MIN;
-  return Math.max(env.FARE_MINIMUM, Math.round(raw / 50) * 50);
+/** Estima la tarifa (CLP) a partir de distancia (km), duración (min) y tarifa. */
+export function estimateFare(distanceKm: number, minutes: number, t: Tariff): number {
+  const raw = t.base + distanceKm * t.per_km + minutes * t.per_min;
+  return Math.max(t.minimum, Math.round(raw / 50) * 50);
 }
 
 /** Minutos estimados asumiendo ~30 km/h en ciudad. */

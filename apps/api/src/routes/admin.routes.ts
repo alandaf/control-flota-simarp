@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { one, query } from '../db.js';
 import { authGuard, hashPassword, type AuthUser } from '../auth.js';
+import { allSettings, loadSettings } from '../tariffs.js';
 
 export async function adminRoutes(app: FastifyInstance) {
   // Todas las rutas requieren rol admin
@@ -79,6 +80,15 @@ export async function adminRoutes(app: FastifyInstance) {
       GROUP BY u.id, u.name, d.rating_avg
       ORDER BY trips DESC LIMIT 8`);
 
+    const byCompany = await query(`
+      SELECT co.name,
+        COUNT(*)::int AS services,
+        COALESCE(SUM(t.fare),0)::numeric AS revenue,
+        COALESCE(SUM(t.distance_km),0)::numeric AS km
+      FROM trips t JOIN companies co ON co.id = t.company_id
+      WHERE t.status='completed'
+      GROUP BY co.id, co.name ORDER BY revenue DESC LIMIT 8`);
+
     // pg ya entrega números (casts ::int / ::numeric) y textos como texto.
     return {
       ok: true,
@@ -89,6 +99,7 @@ export async function adminRoutes(app: FastifyInstance) {
       by_hour: byHour,
       by_weekday: byWeekday,
       top_drivers: topDrivers,
+      by_company: byCompany,
     };
   });
 
@@ -110,10 +121,13 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/users', async (req) => {
     const role = (req.query as any)?.role;
     const roles = ['passenger', 'driver', 'admin'];
-    const where = roles.includes(role) ? 'WHERE role = $1' : '';
+    const where = roles.includes(role) ? 'WHERE u.role = $1' : '';
     const params = roles.includes(role) ? [role] : [];
     const users = await query(
-      `SELECT id, name, email, phone, role, status, created_at FROM users ${where} ORDER BY id DESC`,
+      `SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.created_at,
+        u.company_id, c.name AS company_name
+       FROM users u LEFT JOIN companies c ON c.id = u.company_id
+       ${where} ORDER BY u.id DESC`,
       params
     );
     return { ok: true, users };
@@ -137,6 +151,7 @@ export async function adminRoutes(app: FastifyInstance) {
     role: z.enum(['passenger', 'driver', 'admin']),
     status: z.enum(['active', 'inactive']).optional().default('active'),
     password: z.string().optional().default(''),
+    company_id: z.number().nullable().optional(),
   });
 
   app.post('/user_save', async (req, reply) => {
@@ -148,25 +163,27 @@ export async function adminRoutes(app: FastifyInstance) {
     const dup = await one('SELECT id FROM users WHERE email = $1 AND id <> $2', [email, u.id]);
     if (dup) return reply.code(409).send({ ok: false, error: 'Ese email ya está en uso' });
 
+    // Empresa solo aplica a pasajeros
+    const companyId = u.role === 'passenger' ? (u.company_id ?? null) : null;
     let userId = u.id;
     if (u.id > 0) {
       // Editar
       if (u.password) {
         if (u.password.length < 6) return reply.code(400).send({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres' });
         const hash = await hashPassword(u.password);
-        await query('UPDATE users SET name=$1,email=$2,phone=$3,role=$4,status=$5,password_hash=$6 WHERE id=$7',
-          [u.name, email, u.phone, u.role, u.status, hash, u.id]);
+        await query('UPDATE users SET name=$1,email=$2,phone=$3,role=$4,status=$5,company_id=$6,password_hash=$7 WHERE id=$8',
+          [u.name, email, u.phone, u.role, u.status, companyId, hash, u.id]);
       } else {
-        await query('UPDATE users SET name=$1,email=$2,phone=$3,role=$4,status=$5 WHERE id=$6',
-          [u.name, email, u.phone, u.role, u.status, u.id]);
+        await query('UPDATE users SET name=$1,email=$2,phone=$3,role=$4,status=$5,company_id=$6 WHERE id=$7',
+          [u.name, email, u.phone, u.role, u.status, companyId, u.id]);
       }
     } else {
       // Crear
       if (!u.password || u.password.length < 6) return reply.code(400).send({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres' });
       const hash = await hashPassword(u.password);
       const row = await one<{ id: number }>(
-        'INSERT INTO users (name,email,phone,password_hash,role,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-        [u.name, email, u.phone, hash, u.role, u.status]);
+        'INSERT INTO users (name,email,phone,password_hash,role,status,company_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+        [u.name, email, u.phone, hash, u.role, u.status, companyId]);
       userId = row!.id;
     }
     // Si es conductor, asegurar su ficha
@@ -182,6 +199,70 @@ export async function adminRoutes(app: FastifyInstance) {
     const id = Number((req.body as any)?.id ?? 0);
     if (id === me.id) return reply.code(400).send({ ok: false, error: 'No puedes eliminar tu propia cuenta' });
     await query('DELETE FROM users WHERE id = $1', [id]);
+    return { ok: true };
+  });
+
+  // ================= TARIFAS (settings) =================
+  app.get('/settings', async () => ({ ok: true, settings: allSettings() }));
+
+  app.post('/settings_save', async (req, reply) => {
+    const b = req.body as any;
+    const keys = ['fare_base', 'fare_per_km', 'fare_per_min', 'fare_minimum'];
+    for (const k of keys) {
+      const v = Math.max(0, Math.round(Number(b?.[k] ?? 0)));
+      if (!Number.isFinite(v)) return reply.code(400).send({ ok: false, error: 'Valores inválidos' });
+      await query(`INSERT INTO settings (key,value) VALUES ($1,$2)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [k, String(v)]);
+    }
+    await loadSettings();
+    return { ok: true, settings: allSettings() };
+  });
+
+  // ================= EMPRESAS CLIENTE =================
+  app.get('/companies', async () => {
+    const companies = await query(`
+      SELECT c.*,
+        (SELECT COUNT(*)::int FROM users u WHERE u.company_id = c.id) AS passengers,
+        (SELECT COUNT(*)::int FROM trips t WHERE t.company_id = c.id AND t.status='completed') AS services,
+        (SELECT COALESCE(SUM(t.fare),0)::numeric FROM trips t WHERE t.company_id = c.id AND t.status='completed') AS revenue
+      FROM companies c ORDER BY c.name`);
+    return { ok: true, companies };
+  });
+
+  const companySchema = z.object({
+    id: z.number().optional().default(0),
+    name: z.string().min(2),
+    rut: z.string().optional().default(''),
+    contact_name: z.string().optional().default(''),
+    contact_email: z.string().optional().default(''),
+    contact_phone: z.string().optional().default(''),
+    address: z.string().optional().default(''),
+    fare_base: z.number().nullable().optional(),
+    fare_per_km: z.number().nullable().optional(),
+    fare_per_min: z.number().nullable().optional(),
+    fare_minimum: z.number().nullable().optional(),
+    active: z.boolean().optional().default(true),
+  });
+
+  app.post('/company_save', async (req, reply) => {
+    const p = companySchema.safeParse(req.body);
+    if (!p.success) return reply.code(400).send({ ok: false, error: 'Datos inválidos' });
+    const c = p.data;
+    const vals = [c.name, c.rut, c.contact_name, c.contact_email, c.contact_phone, c.address,
+      c.fare_base ?? null, c.fare_per_km ?? null, c.fare_per_min ?? null, c.fare_minimum ?? null, c.active];
+    if (c.id > 0) {
+      await query(`UPDATE companies SET name=$1,rut=$2,contact_name=$3,contact_email=$4,contact_phone=$5,
+        address=$6,fare_base=$7,fare_per_km=$8,fare_per_min=$9,fare_minimum=$10,active=$11 WHERE id=$12`, [...vals, c.id]);
+      return { ok: true, id: c.id };
+    }
+    const row = await one<{ id: number }>(`INSERT INTO companies
+      (name,rut,contact_name,contact_email,contact_phone,address,fare_base,fare_per_km,fare_per_min,fare_minimum,active)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, vals);
+    return { ok: true, id: row!.id };
+  });
+
+  app.post('/company_delete', async (req) => {
+    await query('DELETE FROM companies WHERE id = $1', [Number((req.body as any)?.id ?? 0)]);
     return { ok: true };
   });
 
@@ -251,17 +332,20 @@ export async function adminRoutes(app: FastifyInstance) {
       params.push(q.status); cond.push(`t.status = $${params.length}`);
     }
     if (q?.driver_id) { params.push(Number(q.driver_id)); cond.push(`t.driver_id = $${params.length}`); }
+    if (q?.company_id) { params.push(Number(q.company_id)); cond.push(`t.company_id = $${params.length}`); }
     const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
 
     const trips = await query(`
       SELECT t.id, t.status, t.distance_km, t.fare, t.requested_at, t.completed_at,
         t.origin_address, t.dest_address,
-        p.name AS passenger_name, d.name AS driver_name, v.plate
+        p.name AS passenger_name, d.name AS driver_name, v.plate,
+        co.name AS company_name
       FROM trips t
       JOIN users p ON p.id = t.passenger_id
       LEFT JOIN users d ON d.id = t.driver_id
       LEFT JOIN drivers dr ON dr.user_id = t.driver_id
       LEFT JOIN vehicles v ON v.id = dr.vehicle_id
+      LEFT JOIN companies co ON co.id = t.company_id
       ${where}
       ORDER BY t.id DESC LIMIT 1000`, params);
     return { ok: true, trips };

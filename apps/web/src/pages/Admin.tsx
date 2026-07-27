@@ -4,10 +4,10 @@ import { createMap, driverMarkerIcon, SANTIAGO } from '../lib/mapkit';
 import { api, es, initials, money } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
-import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle } from '../components/Icons';
+import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle, Building, Settings, Printer } from '../components/Icons';
 import { TrendChart, Bars, Donut } from '../components/Charts';
 
-type View = 'dashboard' | 'map' | 'trips' | 'drivers' | 'vehicles' | 'users';
+type View = 'dashboard' | 'map' | 'trips' | 'drivers' | 'vehicles' | 'users' | 'companies' | 'settings';
 
 // Formateadores
 const cl = (n: number) => Number(n || 0).toLocaleString('es-CL');
@@ -30,8 +30,9 @@ export default function Admin() {
 
       <div className="adminnav">
         {([
-          ['dashboard', 'Dashboard', <Grid />], ['map', 'Mapa en vivo', <MapIcon />], ['trips', 'Viajes', <Route />],
+          ['dashboard', 'Dashboard', <Grid />], ['map', 'Mapa en vivo', <MapIcon />], ['trips', 'Reportes', <Route />],
           ['drivers', 'Conductores', <Wheel />], ['vehicles', 'Vehículos', <Truck />], ['users', 'Usuarios', <UsersIcon />],
+          ['companies', 'Empresas', <Building />], ['settings', 'Tarifas', <Settings />],
         ] as [View, string, JSX.Element][]).map(([v, label, icon]) => (
           <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>{icon} {label}</button>
         ))}
@@ -44,6 +45,8 @@ export default function Admin() {
           {view === 'drivers' && <Drivers />}
           {view === 'vehicles' && <Vehicles />}
           {view === 'users' && <Users />}
+          {view === 'companies' && <Companies />}
+          {view === 'settings' && <SettingsTab />}
         </div>
       )}
     </div>
@@ -173,6 +176,23 @@ function Dashboard({ onGo }: { onGo: (v: View) => void }) {
             </div>
           ))}
       </div>
+
+      {/* Ingresos por empresa cliente */}
+      {data.by_company && data.by_company.length > 0 && (
+        <div className="chart-card">
+          <div className="chart-head"><h4>Ingresos por empresa</h4><div className="sub">facturable</div></div>
+          {data.by_company.map((c: any, i: number) => (
+            <div className="rank" key={i}>
+              <div className={`pos ${i === 0 ? 'top' : ''}`}>{i + 1}</div>
+              <div className="grow">
+                <div className="rname">{c.name}</div>
+                <div className="rsub">{cl(c.services)} servicios · {cl(Math.round(c.km))} km</div>
+              </div>
+              <div className="rval tnum">{money0(c.revenue)}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -217,27 +237,42 @@ function LiveMap() {
 
 function Trips() {
   const [trips, setTrips] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [status, setStatus] = useState('');
+  const [driverId, setDriverId] = useState('');
+  const [companyId, setCompanyId] = useState('');
+
+  useEffect(() => {
+    api<{ users: any[] }>('/api/admin/users?role=driver').then((d) => setDrivers(d.users)).catch(() => {});
+    api<{ companies: any[] }>('/api/admin/companies').then((d) => setCompanies(d.companies)).catch(() => {});
+  }, []);
 
   const load = () => {
     const qs = new URLSearchParams();
     if (from) qs.set('from', from);
     if (to) qs.set('to', to);
     if (status) qs.set('status', status);
+    if (driverId) qs.set('driver_id', driverId);
+    if (companyId) qs.set('company_id', companyId);
     api<{ trips: any[] }>(`/api/admin/trips?${qs.toString()}`).then((d) => setTrips(d.trips)).catch(() => {});
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [from, to, status]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [from, to, status, driverId, companyId]);
 
   const completed = trips.filter((t) => t.status === 'completed');
   const totalRevenue = completed.reduce((s, t) => s + (t.fare || 0), 0);
   const totalKm = completed.reduce((s, t) => s + Number(t.distance_km || 0), 0);
 
+  const hasFilter = from || to || status || driverId || companyId;
+  const companyName = companies.find((c) => String(c.id) === companyId)?.name;
+  const driverName = drivers.find((d) => String(d.id) === driverId)?.name;
+
   function exportCSV() {
-    const head = ['ID', 'Fecha', 'Pasajero', 'Conductor', 'Patente', 'Origen', 'Destino', 'Km', 'Tarifa', 'Estado'];
+    const head = ['ID', 'Fecha', 'Empresa', 'Pasajero', 'Conductor', 'Patente', 'Origen', 'Destino', 'Km', 'Tarifa', 'Estado'];
     const rows = trips.map((t) => [
-      t.id, String(t.requested_at || '').slice(0, 16).replace('T', ' '),
+      t.id, String(t.requested_at || '').slice(0, 16).replace('T', ' '), t.company_name || '',
       t.passenger_name || '', t.driver_name || '', t.plate || '',
       t.origin_address || '', t.dest_address || '', t.distance_km ?? '', t.fare ?? '', es(t.status),
     ]);
@@ -252,9 +287,21 @@ function Trips() {
 
   return (
     <>
-      <div className="filters">
+      <div className="filters no-print">
         <div className="f"><label>Desde</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
         <div className="f"><label>Hasta</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+        <div className="f"><label>Empresa</label>
+          <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+            <option value="">Todas</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="f"><label>Conductor</label>
+          <select value={driverId} onChange={(e) => setDriverId(e.target.value)}>
+            <option value="">Todos</option>
+            {drivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
         <div className="f"><label>Estado</label>
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Todos</option>
@@ -264,37 +311,49 @@ function Trips() {
             <option value="requested">Solicitado</option>
           </select>
         </div>
-        {(from || to || status) && <button className="btn small ghost" onClick={() => { setFrom(''); setTo(''); setStatus(''); }}>Limpiar</button>}
-        <button className="btn small" onClick={exportCSV}>⬇ Exportar CSV</button>
+        {hasFilter && <button className="btn small ghost" onClick={() => { setFrom(''); setTo(''); setStatus(''); setDriverId(''); setCompanyId(''); }}>Limpiar</button>}
+        <button className="btn small secondary" onClick={() => window.print()}><Printer /> Imprimir / PDF</button>
+        <button className="btn small" onClick={exportCSV}>⬇ CSV</button>
       </div>
 
-      <div className="report-tot">
-        <div className="t">Servicios<b>{cl(trips.length)}</b></div>
-        <div className="t">Completados<b>{cl(completed.length)}</b></div>
-        <div className="t">Ingresos (facturable)<b>{money0(totalRevenue)}</b></div>
-        <div className="t">Distancia<b>{cl(Math.round(totalKm))} km</b></div>
-      </div>
+      <div className="report-print">
+        <div className="print-head">
+          <div className="brand" style={{ fontSize: 16 }}><span className="mark"><Logo /></span> Reporte de servicios</div>
+          <div className="muted">
+            {companyName ? `Empresa: ${companyName} · ` : ''}{driverName ? `Conductor: ${driverName} · ` : ''}
+            Período: {from || 'inicio'} a {to || 'hoy'} · Generado {new Date().toLocaleDateString('es-CL')}
+          </div>
+        </div>
 
-      <div className="card">
-        <div style={{ overflowX: 'auto' }}>
-          <table>
-            <thead><tr><th>#</th><th>Fecha</th><th>Pasajero</th><th>Conductor</th><th>Patente</th><th>Km</th><th>Tarifa</th><th>Estado</th></tr></thead>
-            <tbody>
-              {trips.length === 0 ? <tr><td colSpan={8} className="muted center" style={{ padding: 24 }}>Sin servicios en el período.</td></tr> :
-                trips.map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.id}</td>
-                    <td className="muted">{String(t.requested_at || '').slice(0, 16).replace('T', ' ')}</td>
-                    <td>{t.passenger_name}</td>
-                    <td>{t.driver_name || '—'}</td>
-                    <td className="muted">{t.plate || '—'}</td>
-                    <td>{t.distance_km ?? '—'}</td>
-                    <td className="tnum">{money0(t.fare || 0)}</td>
-                    <td><span className={`badge ${t.status}`}>{es(t.status)}</span></td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+        <div className="report-tot">
+          <div className="t">Servicios<b>{cl(trips.length)}</b></div>
+          <div className="t">Completados<b>{cl(completed.length)}</b></div>
+          <div className="t">Total facturable<b>{money0(totalRevenue)}</b></div>
+          <div className="t">Distancia<b>{cl(Math.round(totalKm))} km</b></div>
+        </div>
+
+        <div className="card">
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead><tr><th>#</th><th>Fecha</th><th>Empresa</th><th>Pasajero</th><th>Conductor</th><th>Patente</th><th>Km</th><th>Tarifa</th><th>Estado</th></tr></thead>
+              <tbody>
+                {trips.length === 0 ? <tr><td colSpan={9} className="muted center" style={{ padding: 24 }}>Sin servicios en el período.</td></tr> :
+                  trips.map((t) => (
+                    <tr key={t.id}>
+                      <td>{t.id}</td>
+                      <td className="muted">{String(t.requested_at || '').slice(0, 16).replace('T', ' ')}</td>
+                      <td>{t.company_name || '—'}</td>
+                      <td>{t.passenger_name}</td>
+                      <td>{t.driver_name || '—'}</td>
+                      <td className="muted">{t.plate || '—'}</td>
+                      <td>{t.distance_km ?? '—'}</td>
+                      <td className="tnum">{money0(t.fare || 0)}</td>
+                      <td><span className={`badge ${t.status}`}>{es(t.status)}</span></td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </>
@@ -414,10 +473,14 @@ const ROLE_ES: Record<string, string> = { passenger: 'Pasajero', driver: 'Conduc
 function Users() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
   const [filter, setFilter] = useState('');
   const [edit, setEdit] = useState<any | null>(null);
   const load = () => api<{ users: any[] }>('/api/admin/users').then((d) => setUsers(d.users)).catch(() => {});
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api<{ companies: any[] }>('/api/admin/companies').then((d) => setCompanies(d.companies)).catch(() => {});
+  }, []);
 
   async function toggle(id: number) {
     try { await api('/api/admin/toggle_user', { id }); load(); } catch (e: any) { alert(e.message); }
@@ -428,6 +491,7 @@ function Users() {
       await api('/api/admin/user_save', {
         id: Number(edit.id) || 0, name: edit.name.trim(), email: edit.email.trim(),
         phone: edit.phone || '', role: edit.role, status: edit.status, password: edit.password || '',
+        company_id: edit.role === 'passenger' && edit.company_id ? Number(edit.company_id) : null,
       });
       setEdit(null); load();
     } catch (e: any) { alert(e.message); }
@@ -456,13 +520,14 @@ function Users() {
         <h4>Usuarios ({shown.length})</h4>
         <div style={{ overflowX: 'auto' }}>
           <table>
-            <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Empresa</th><th>Estado</th><th></th></tr></thead>
             <tbody>
               {shown.map((u) => (
                 <tr key={u.id}>
                   <td><b>{u.name}</b><br /><span className="muted">{u.phone || ''}</span></td>
                   <td className="muted">{u.email}</td>
                   <td><span className={`badge ${u.role === 'driver' ? 'busy' : u.role === 'admin' ? 'in_progress' : 'completed'}`}>{ROLE_ES[u.role]}</span></td>
+                  <td className="muted">{u.company_name || '—'}</td>
                   <td><span className={`badge ${u.status}`}>{es(u.status)}</span></td>
                   <td>
                     <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
@@ -496,6 +561,15 @@ function Users() {
                 </select>
               </div>
             </div>
+            {edit.role === 'passenger' && (
+              <>
+                <label>Empresa cliente <span className="muted">(opcional)</span></label>
+                <select value={edit.company_id || ''} onChange={(e) => setEdit({ ...edit, company_id: e.target.value })}>
+                  <option value="">Sin empresa (particular)</option>
+                  {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </>
+            )}
             <label>Estado</label>
             <select value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>
               <option value="active">Activo</option>
@@ -509,5 +583,132 @@ function Users() {
         </div>
       )}
     </>
+  );
+}
+
+// =================== EMPRESAS CLIENTE ===================
+const emptyCompany = { id: 0, name: '', rut: '', contact_name: '', contact_email: '', contact_phone: '', address: '', fare_base: '', fare_per_km: '', fare_per_min: '', fare_minimum: '', active: true };
+
+function Companies() {
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [edit, setEdit] = useState<any | null>(null);
+  const load = () => api<{ companies: any[] }>('/api/admin/companies').then((d) => setCompanies(d.companies)).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const numOrNull = (v: any) => (v === '' || v == null ? null : Number(v));
+  async function save() {
+    if (!edit.name || edit.name.length < 2) { alert('El nombre de la empresa es obligatorio'); return; }
+    try {
+      await api('/api/admin/company_save', {
+        id: Number(edit.id) || 0, name: edit.name.trim(), rut: edit.rut, contact_name: edit.contact_name,
+        contact_email: edit.contact_email, contact_phone: edit.contact_phone, address: edit.address,
+        fare_base: numOrNull(edit.fare_base), fare_per_km: numOrNull(edit.fare_per_km),
+        fare_per_min: numOrNull(edit.fare_per_min), fare_minimum: numOrNull(edit.fare_minimum),
+        active: edit.active !== false,
+      });
+      setEdit(null); load();
+    } catch (e: any) { alert(e.message); }
+  }
+  async function del(c: any) {
+    if (!confirm(`¿Eliminar la empresa ${c.name}?`)) return;
+    try { await api('/api/admin/company_delete', { id: c.id }); load(); } catch (e: any) { alert(e.message); }
+  }
+
+  return (
+    <>
+      <button className="btn small mb" onClick={() => setEdit({ ...emptyCompany })}><Plus /> Nueva empresa</button>
+      {companies.length === 0 && <div className="empty"><Building /><p>Aún no hay empresas cliente.<br />Créalas para separar y facturar servicios por contrato.</p></div>}
+      {companies.map((c) => (
+        <div className="card" key={c.id}>
+          <div className="between">
+            <div>
+              <b>{c.name}</b> {!c.active && <span className="badge inactive">Inactiva</span>}
+              {(c.fare_base != null) && <span className="badge accepted" style={{ marginLeft: 6 }}>Tarifa propia</span>}
+              <div className="muted" style={{ marginTop: 3 }}>{c.rut ? `RUT ${c.rut} · ` : ''}{c.contact_name || ''}{c.contact_phone ? ' · ' + c.contact_phone : ''}</div>
+              <div className="muted">{cl(c.services || 0)} servicios · {money0(c.revenue || 0)} facturado · {cl(c.passengers || 0)} pasajeros</div>
+            </div>
+            <div className="row" style={{ gap: 6 }}>
+              <button className="btn small secondary" onClick={() => setEdit({ ...c, fare_base: c.fare_base ?? '', fare_per_km: c.fare_per_km ?? '', fare_per_min: c.fare_per_min ?? '', fare_minimum: c.fare_minimum ?? '' })}>Editar</button>
+              <button className="icon-btn" style={{ color: 'var(--danger)' }} onClick={() => del(c)} title="Eliminar"><Trash /></button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {edit && (
+        <div className="modal-bg">
+          <div className="modal">
+            <h3>{edit.id ? 'Editar empresa' : 'Nueva empresa'}</h3>
+            <label>Nombre de la empresa</label>
+            <input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Empresa S.A." />
+            <div className="row" style={{ gap: 10 }}>
+              <div className="grow"><label>RUT</label><input value={edit.rut} onChange={(e) => setEdit({ ...edit, rut: e.target.value })} placeholder="76.123.456-7" /></div>
+              <div className="grow"><label>Contacto</label><input value={edit.contact_name} onChange={(e) => setEdit({ ...edit, contact_name: e.target.value })} /></div>
+            </div>
+            <div className="row" style={{ gap: 10 }}>
+              <div className="grow"><label>Email</label><input value={edit.contact_email} onChange={(e) => setEdit({ ...edit, contact_email: e.target.value })} /></div>
+              <div className="grow"><label>Teléfono</label><input value={edit.contact_phone} onChange={(e) => setEdit({ ...edit, contact_phone: e.target.value })} /></div>
+            </div>
+            <label>Dirección</label>
+            <input value={edit.address} onChange={(e) => setEdit({ ...edit, address: e.target.value })} />
+
+            <div className="seg-title">Tarifa negociada (opcional — en blanco usa la global)</div>
+            <div className="row" style={{ gap: 10 }}>
+              <div className="grow"><label>Base</label><input type="number" value={edit.fare_base} onChange={(e) => setEdit({ ...edit, fare_base: e.target.value })} placeholder="global" /></div>
+              <div className="grow"><label>Por km</label><input type="number" value={edit.fare_per_km} onChange={(e) => setEdit({ ...edit, fare_per_km: e.target.value })} placeholder="global" /></div>
+            </div>
+            <div className="row" style={{ gap: 10 }}>
+              <div className="grow"><label>Por min</label><input type="number" value={edit.fare_per_min} onChange={(e) => setEdit({ ...edit, fare_per_min: e.target.value })} placeholder="global" /></div>
+              <div className="grow"><label>Mínima</label><input type="number" value={edit.fare_minimum} onChange={(e) => setEdit({ ...edit, fare_minimum: e.target.value })} placeholder="global" /></div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+              <input type="checkbox" style={{ width: 'auto' }} checked={edit.active !== false} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} /> Empresa activa
+            </label>
+            <button className="btn" onClick={save}>Guardar</button>
+            <button className="btn ghost small mt" style={{ width: '100%' }} onClick={() => setEdit(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// =================== TARIFAS GLOBALES ===================
+function SettingsTab() {
+  const [s, setS] = useState<any>(null);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { api<{ settings: any }>('/api/admin/settings').then((d) => setS(d.settings)).catch(() => {}); }, []);
+  if (!s) return <div className="spinner center" />;
+
+  async function save() {
+    try {
+      const d = await api<{ settings: any }>('/api/admin/settings_save', {
+        fare_base: Number(s.fare_base), fare_per_km: Number(s.fare_per_km),
+        fare_per_min: Number(s.fare_per_min), fare_minimum: Number(s.fare_minimum),
+      });
+      setS(d.settings); setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) { alert(e.message); }
+  }
+  const km = 5, min = 12;
+  const preview = Math.max(s.fare_minimum, Math.round((s.fare_base + km * s.fare_per_km + min * s.fare_per_min) / 50) * 50);
+
+  return (
+    <div className="card" style={{ maxWidth: 460 }}>
+      <h4>Tarifas globales</h4>
+      <p className="dim mb">Se aplican a todos los servicios, salvo empresas con tarifa propia.</p>
+      <label>Tarifa base (banderazo)</label>
+      <input type="number" value={s.fare_base} onChange={(e) => setS({ ...s, fare_base: e.target.value })} />
+      <div className="row" style={{ gap: 10 }}>
+        <div className="grow"><label>Costo por km</label><input type="number" value={s.fare_per_km} onChange={(e) => setS({ ...s, fare_per_km: e.target.value })} /></div>
+        <div className="grow"><label>Costo por minuto</label><input type="number" value={s.fare_per_min} onChange={(e) => setS({ ...s, fare_per_min: e.target.value })} /></div>
+      </div>
+      <label>Tarifa mínima</label>
+      <input type="number" value={s.fare_minimum} onChange={(e) => setS({ ...s, fare_minimum: e.target.value })} />
+
+      <div className="report-tot mt">
+        <div className="t">Ejemplo (5 km, 12 min)<b>{money0(preview)}</b></div>
+      </div>
+      <button className="btn" onClick={save}>{saved ? '✓ Guardado' : 'Guardar tarifas'}</button>
+    </div>
   );
 }

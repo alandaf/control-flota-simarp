@@ -8,6 +8,7 @@ import { env } from './env.js';
 import { waitForDb, migrate, pool } from './db.js';
 import { pubClient, subClient } from './redis.js';
 import { seed } from './seed.js';
+import { loadSettings } from './tariffs.js';
 import { setIo } from './events.js';
 import { setupSockets } from './sockets.js';
 import { authRoutes } from './routes/auth.routes.js';
@@ -36,6 +37,7 @@ async function main() {
   await waitForDb();
   await migrate();
   await seed();
+  await loadSettings();
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info(`API escuchando en :${env.PORT}`);

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { one, query } from '../db.js';
 import { authGuard, type AuthUser } from '../auth.js';
 import { estimateFare } from '../fare.js';
+import { tariffForUser } from '../tariffs.js';
 import { getRoute } from '../routing.js';
 import { emitTo, room } from '../events.js';
 import { env } from '../env.js';
@@ -32,13 +33,15 @@ export async function tripRoutes(app: FastifyInstance) {
   app.post('/estimate', { preHandler: authGuard() }, async (req, reply) => {
     const p = estimateSchema.safeParse(req.body);
     if (!p.success) return reply.code(400).send({ ok: false, error: 'Coordenadas inválidas' });
+    const user = req.user as AuthUser;
     const { origin_lat, origin_lng, dest_lat, dest_lng } = p.data;
     const route = await getRoute(origin_lat, origin_lng, dest_lat, dest_lng);
+    const { tariff } = await tariffForUser(user.id);
     return {
       ok: true,
       distance_km: route.distanceKm,
       minutes: route.durationMin,
-      fare: estimateFare(route.distanceKm, route.durationMin),
+      fare: estimateFare(route.distanceKm, route.durationMin, tariff),
       geometry: route.geometry,
       routed: route.source === 'osrm',
     };
@@ -78,18 +81,19 @@ export async function tripRoutes(app: FastifyInstance) {
 
     const route = await getRoute(d.origin_lat, d.origin_lng, d.dest_lat, d.dest_lng);
     const km = route.distanceKm;
-    const fare = estimateFare(km, route.durationMin);
+    const { tariff, companyId } = await tariffForUser(user.id);
+    const fare = estimateFare(km, route.durationMin, tariff);
 
     const trip = await one<any>(
       `INSERT INTO trips
-         (passenger_id, origin, destination, origin_address, dest_address, distance_km, fare, notes, status)
+         (passenger_id, origin, destination, origin_address, dest_address, distance_km, fare, notes, company_id, status)
        VALUES ($1,
          ST_SetSRID(ST_MakePoint($2,$3),4326)::geography,
          ST_SetSRID(ST_MakePoint($4,$5),4326)::geography,
-         $6, $7, $8, $9, $10, 'requested')
+         $6, $7, $8, $9, $10, $11, 'requested')
        RETURNING id`,
       [user.id, d.origin_lng, d.origin_lat, d.dest_lng, d.dest_lat,
-       d.origin_address, d.dest_address, km, fare, d.notes]
+       d.origin_address, d.dest_address, km, fare, d.notes, companyId]
     );
 
     // Notificar a conductores conectados (los cercanos verán la solicitud primero)

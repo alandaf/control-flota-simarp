@@ -84,6 +84,15 @@ export const StarOutline = (p: P) => (
 export const Clock = (p: P) => (
   <svg {...base(p)}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>
 );
+export const Building = (p: P) => (
+  <svg {...base(p)}><rect x="4" y="3" width="12" height="18" rx="1" /><path d="M16 8h4a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-4" /><path d="M8 7h4M8 11h4M8 15h4" /></svg>
+);
+export const Settings = (p: P) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /></svg>
+);
+export const Printer = (p: P) => (
+  <svg {...base(p)}><path d="M6 9V3h12v6" /><path d="M6 18H4a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2" /><rect x="6" y="14" width="12" height="7" rx="1" /></svg>
+);
 export const Play = (p: P) => (
   <svg {...base({ ...p, fill: 'currentColor', stroke: 'none' })}><path d="M7 4.5v15l12-7.5L7 4.5Z" /></svg>
 );

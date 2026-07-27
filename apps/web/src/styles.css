@@ -450,6 +450,23 @@ tr:last-child td { border-bottom: none; }
 .report-tot .t b { display: block; font-size: 17px; color: var(--ink); font-weight: 750; letter-spacing: -0.02em; }
 .seg-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; }
 
+/* ---------- Reporte imprimible (PDF) ---------- */
+.print-head { display: none; margin-bottom: 14px; }
+.print-head .brand { margin-bottom: 4px; }
+.print-head .muted { font-size: 12px; }
+@media print {
+  .topbar, .adminnav, .no-print, .filters { display: none !important; }
+  .app { height: auto; display: block; background: #fff; }
+  .scroll { overflow: visible; padding: 0; }
+  .print-head { display: block; }
+  .card { box-shadow: none; border: 1px solid #ddd; }
+  .report-tot { background: #f6f6f6; }
+  table { font-size: 10.5px; }
+  th, td { padding: 6px 6px; }
+  .badge { border: 1px solid #ccc; }
+  @page { margin: 14mm; }
+}
+
 /* ---------- Empty state ---------- */
 .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
 .empty svg { width: 30px; height: 30px; color: var(--faint); margin-bottom: 12px; }
