@@ -81,10 +81,12 @@ export default function Login() {
         <button className="btn" disabled={busy}>{busy ? 'Procesando…' : mode === 'login' ? 'Ingresar' : 'Crear cuenta'}</button>
         {error && <div className="msg error">{error}</div>}
 
-        <p className="hint">
-          Cuentas de demostración · clave <code>123456</code><br />
-          <b>admin@flota.cl</b> · <b>pasajero@flota.cl</b> · <b>conductor@flota.cl</b>
-        </p>
+        {import.meta.env.DEV && (
+          <p className="hint">
+            Cuentas de demostración (solo dev) · clave <code>123456</code><br />
+            <b>admin@flota.cl</b> · <b>pasajero@flota.cl</b> · <b>conductor@flota.cl</b>
+          </p>
+        )}
       </form>
     </div>
   );

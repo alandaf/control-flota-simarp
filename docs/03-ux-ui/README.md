@@ -14,6 +14,7 @@ El objetivo declarado fue que **no pareciera "hecho por IA"**, sino un producto 
 
 | Ruta | Archivo | Descripción |
 |------|---------|-------------|
+| `/` | `pages/Landing.tsx` | Portada pública del producto (si hay sesión, redirige al home del rol) |
 | `/login` | `pages/Login.tsx` | Ingreso; enruta según rol |
 | `/` (pasajero) | `pages/Passenger.tsx` | Mapa, buscador origen/destino, estimación, seguimiento en vivo con ETA |
 | `/driver` | `pages/Driver.tsx` | Mapa navegación, solicitudes, control de estado del viaje |

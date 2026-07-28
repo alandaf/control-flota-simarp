@@ -6,6 +6,7 @@ import Driver from './pages/Driver';
 import Admin from './pages/Admin';
 import Company from './pages/Company';
 import History from './pages/History';
+import Landing from './pages/Landing';
 
 function homeFor(role: User['role']) {
   return role === 'admin' ? '/admin' : role === 'driver' ? '/driver' : role === 'company' ? '/company' : '/passenger';
@@ -25,7 +26,8 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={user ? <Navigate to={homeFor(user.role)} replace /> : <Login />} />
+      <Route path="/" element={user ? <Navigate to={homeFor(user.role)} replace /> : <Landing />} />
+      <Route path="/login" element={user ? <Navigate to={homeFor(user.role)} replace /> : <Login />} />
       <Route path="/passenger" element={<Protected role="passenger"><Passenger /></Protected>} />
       <Route path="/history" element={<Protected role="passenger"><History /></Protected>} />
       <Route path="/driver" element={<Protected role="driver"><Driver /></Protected>} />
