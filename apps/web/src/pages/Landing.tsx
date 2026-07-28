@@ -35,7 +35,7 @@ const HTML = String.raw`
   }
 
   .lp-page .lp-wrap { max-width: var(--lp-wrap); margin: 0 auto; padding: 0 22px; }
-  .lp-page a { color: inherit; text-decoration: none; }
+  .lp-page a { text-decoration: none; }
   .lp-page h1, .lp-page h2, .lp-page h3 { text-wrap: balance; margin: 0; letter-spacing: -.02em; font-weight: 780; }
   .lp-eyebrow { font-family: var(--lp-mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--amber-text); margin: 0 0 14px; }
 
