@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, haversineKm } from '../lib/api';
+import { api } from '../lib/api';
 import { Maneuver, Volume, VolumeOff } from './Icons';
 
 interface Step { lat: number; lng: number; instruction: string; type: string; modifier: string; distance: number; }
@@ -9,23 +9,53 @@ interface Props {
   getPos: () => { lat: number; lng: number } | null;
 }
 
+// ---- Geometría local (metros) ----
+const R = 6371000;
+const rad = (d: number) => (d * Math.PI) / 180;
+interface XY { x: number; y: number }
+const toXY = (lat: number, lng: number, latRef: number, lngRef: number): XY => ({
+  x: rad(lng - lngRef) * Math.cos(rad(latRef)) * R,
+  y: rad(lat - latRef) * R,
+});
+const dist = (a: XY, b: XY) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/** Proyecta p sobre el segmento a-b. Devuelve distancia perpendicular y avance (0..len). */
+function projectSeg(p: XY, a: XY, b: XY): { d: number; along: number } {
+  const vx = b.x - a.x, vy = b.y - a.y;
+  const len2 = vx * vx + vy * vy;
+  let t = len2 > 0 ? ((p.x - a.x) * vx + (p.y - a.y) * vy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = a.x + t * vx, cy = a.y + t * vy;
+  return { d: Math.hypot(p.x - cx, p.y - cy), along: t * Math.sqrt(len2) };
+}
+
 function fmtDist(m: number): string {
   if (m >= 1000) return (m / 1000).toFixed(1).replace('.0', '') + ' km';
   return Math.max(0, Math.round(m / 10) * 10) + ' m';
 }
 
+// Modelo de la ruta pre-calculado para el seguimiento
+interface RouteModel {
+  latRef: number; lngRef: number;
+  xy: XY[];            // vértices de la ruta en metros
+  cum: number[];       // distancia acumulada por vértice
+  stepAlong: number[]; // avance (m) de cada maniobra a lo largo de la ruta
+  total: number;
+}
+
 export default function NavGuide({ target, legKey, getPos }: Props) {
   const [steps, setSteps] = useState<Step[]>([]);
-  const [idx, setIdx] = useState(1);
+  const [idx, setIdx] = useState(0);
   const [distM, setDistM] = useState(0);
   const [voiceOn, setVoiceOn] = useState(false); // OFF por defecto (iOS exige un toque)
 
-  const idxRef = useRef(1); idxRef.current = idx;
   const stepsRef = useRef<Step[]>([]); stepsRef.current = steps;
+  const modelRef = useRef<RouteModel | null>(null);
   const voiceRef = useRef(false);        // se actualiza al instante al tocar
   const spokenAt = useRef<number>(-1);   // idx anunciado "en X metros"
   const spokenNow = useRef<number>(-1);  // idx anunciado "ahora"
   const offCount = useRef(0);
+  const recalcAt = useRef(0);            // timestamp del último recálculo (anti-rebote)
 
   function speak(text: string) {
     if (!voiceRef.current || !('speechSynthesis' in window)) return;
@@ -47,19 +77,40 @@ export default function NavGuide({ target, legKey, getPos }: Props) {
     else window.speechSynthesis.cancel();
   }
 
-  // (Re)calcula la ruta con maniobras desde la posición actual hacia el destino
+  // (Re)calcula la ruta con maniobras + geometría desde la posición actual hacia el destino
   async function fetchSteps() {
     const pos = getPos();
     if (!pos || !target) return;
+    recalcAt.current = Date.now();
     try {
       const r = await api<any>('/api/trips/route', {
         origin_lat: pos.lat, origin_lng: pos.lng, dest_lat: target.lat, dest_lng: target.lng, steps: true,
       });
       const s: Step[] = r.steps ?? [];
+      const geom: [number, number][] = r.geometry ?? [];
+      modelRef.current = buildModel(s, geom);
       setSteps(s);
       setIdx(s.length > 1 ? 1 : 0);
       spokenAt.current = -1; spokenNow.current = -1; offCount.current = 0;
     } catch { /* reintenta luego */ }
+  }
+
+  function buildModel(s: Step[], geom: [number, number][]): RouteModel | null {
+    if (geom.length < 2) return null;
+    const latRef = geom[0][0], lngRef = geom[0][1];
+    const xy = geom.map(([la, ln]) => toXY(la, ln, latRef, lngRef));
+    const cum = [0];
+    for (let i = 1; i < xy.length; i++) cum[i] = cum[i - 1] + dist(xy[i - 1], xy[i]);
+    const total = cum[cum.length - 1];
+    // Cada maniobra -> avance del vértice más cercano de la ruta
+    const stepAlong = s.map((st) => {
+      const p = toXY(st.lat, st.lng, latRef, lngRef);
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < xy.length; i++) { const d = dist(p, xy[i]); if (d < bd) { bd = d; best = i; } }
+      return cum[best];
+    });
+    if (stepAlong.length) stepAlong[stepAlong.length - 1] = total; // la llegada = fin de la ruta
+    return { latRef, lngRef, xy, cum, stepAlong, total };
   }
 
   useEffect(() => { fetchSteps(); /* eslint-disable-next-line */ }, [legKey]);
@@ -69,13 +120,22 @@ export default function NavGuide({ target, legKey, getPos }: Props) {
     const iv = setInterval(() => {
       const pos = getPos();
       const s = stepsRef.current;
-      if (!pos || s.length === 0) return;
+      const model = modelRef.current;
+      if (!pos || s.length === 0 || !model) return;
 
-      let i = Math.min(idxRef.current, s.length - 1);
-      let d = haversineKm(pos.lat, pos.lng, s[i].lat, s[i].lng) * 1000;
+      // Proyecta la posición sobre la ruta: distancia perpendicular (fuera de ruta) y avance
+      const p = toXY(pos.lat, pos.lng, model.latRef, model.lngRef);
+      let cross = Infinity, sAlong = 0;
+      for (let i = 0; i < model.xy.length - 1; i++) {
+        const pr = projectSeg(p, model.xy[i], model.xy[i + 1]);
+        if (pr.d < cross) { cross = pr.d; sAlong = model.cum[i] + pr.along; }
+      }
 
-      // Avanza a la siguiente maniobra al pasar la actual
-      if (d < 22 && i < s.length - 1) { i++; setIdx(i); d = haversineKm(pos.lat, pos.lng, s[i].lat, s[i].lng) * 1000; }
+      // Maniobra actual = primera cuyo avance está por delante de mí
+      let i = model.stepAlong.findIndex((a) => a > sAlong + 6);
+      if (i < 0) i = s.length - 1;
+      const d = Math.max(0, model.stepAlong[i] - sAlong); // distancia real por la ruta
+      setIdx(i);
       setDistM(d);
 
       // Anuncios por voz
@@ -83,14 +143,18 @@ export default function NavGuide({ target, legKey, getPos }: Props) {
       if (st.type === 'arrive') {
         if (d < 40 && spokenNow.current !== i) { spokenNow.current = i; speak('Llegaste a tu destino'); }
       } else {
-        if (d < 300 && spokenAt.current !== i) { spokenAt.current = i; speak(`En ${fmtDist(d)}, ${st.instruction}`); }
-        if (d < 35 && spokenNow.current !== i) { spokenNow.current = i; speak(st.instruction); }
+        if (d < 300 && d > 60 && spokenAt.current !== i) { spokenAt.current = i; speak(`En ${fmtDist(d)}, ${st.instruction}`); }
+        if (d < 40 && spokenNow.current !== i) { spokenNow.current = i; speak(st.instruction); }
       }
 
-      // Recalcular si se salió de la ruta
-      if (d > 220) { offCount.current++; if (offCount.current >= 3) fetchSteps(); }
-      else offCount.current = 0;
-    }, 2500);
+      // Recalcular si me salí de la ruta (distancia perpendicular real)
+      if (cross > 45) {
+        offCount.current++;
+        if (offCount.current >= 2 && Date.now() - recalcAt.current > 6000) fetchSteps();
+      } else {
+        offCount.current = 0;
+      }
+    }, 2000);
     return () => clearInterval(iv);
     // eslint-disable-next-line
   }, []);
