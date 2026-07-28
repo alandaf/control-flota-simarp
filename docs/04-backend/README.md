@@ -35,7 +35,7 @@ Referencia completa de endpoints en [06 · API](../06-api/README.md).
   - `authGuard('passenger')` en `POST /api/trips/request`
   - `authGuard('driver')` en `POST /api/trips/accept`
 
-> ⚠️ Las rutas de `/api/admin` hoy no llevan `authGuard('admin')` explícito en cada handler. Ver nota en [08 · Security](../08-security/README.md).
+> Las rutas de `/api/admin` no llevan `authGuard` por handler porque el grupo se protege con un hook de plugin (`admin.routes.ts:9`: `app.addHook('preHandler', authGuard('admin'))`), que cubre todas las rutas del prefijo. Ver [08 · Security](../08-security/README.md).
 
 ## Tiempo real (`sockets.ts`)
 

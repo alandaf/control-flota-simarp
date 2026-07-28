@@ -12,7 +12,7 @@
 - Ejemplos: `authGuard('passenger')` en pedir viaje, `authGuard('driver')` en aceptar.
 - En sockets, cada handler valida el rol (`if (user.role !== 'driver') return`).
 
-> ⚠️ **Pendiente de seguridad conocido.** Los endpoints de `/api/admin` requieren **sesión** pero hoy no todos verifican `role === 'admin'` a nivel de handler. Endurecer esto es prioridad en el [Roadmap](../10-roadmap/README.md): agregar `authGuard('admin')` al grupo `/api/admin`.
+- **`/api/admin`:** todo el grupo está protegido con `authGuard('admin')` mediante un hook de plugin (`apps/api/src/routes/admin.routes.ts:9`), no con guardas por handler. Cubre cada ruta admin.
 
 ## Superficie expuesta
 
@@ -43,8 +43,8 @@ Al pegar salida de comandos del VPS, **omitir** cualquier secreto. El asistente 
 
 ## Checklist de endurecimiento (siguiente iteración)
 
-- [ ] `authGuard('admin')` en todo `/api/admin`.
+- [x] `authGuard('admin')` en todo `/api/admin` — ya implementado (hook de plugin).
+- [x] CORS acotado al dominio de producción — ya configurado (`CORS_ORIGIN=https://flota.simarp.net`).
 - [ ] Rate limiting en `/api/auth/login` y `/api/auth/register`.
 - [ ] Rotación del `JWT_SECRET` documentada.
-- [ ] CORS acotado al dominio de producción (hoy refleja el origen).
 - [ ] Política de retención/anonimización de ubicaciones.

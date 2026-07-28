@@ -22,10 +22,10 @@ Modelo de seguridad de FLOTA: autenticación, autorización, protección de dato
 - `authGuard(role?)` como `preHandler` (`apps/api/src/auth.ts`).
 - Roles: `passenger`, `driver`, `admin`.
 - En sockets, cada handler verifica el rol antes de actuar.
+- **`/api/trips`:** guardas por rol en cada endpoint (`authGuard('passenger')` / `authGuard('driver')`).
+- **`/api/admin`:** ✅ **todo el grupo** está protegido con `authGuard('admin')` mediante un hook a nivel de plugin (`apps/api/src/routes/admin.routes.ts:9`: `app.addHook('preHandler', authGuard('admin'))`), aplicado al registrarse con prefijo `/api/admin` (`index.ts:33`). En Fastify el hook queda encapsulado al scope del plugin, por lo que cubre cada ruta admin, presente y futura.
 
-### ⚠️ Hallazgo abierto (prioridad alta)
-Los endpoints `/api/admin/*` exigen **sesión** pero no todos verifican `role === 'admin'` en el handler. **Riesgo:** un usuario autenticado no-admin podría invocar operaciones de administración.
-**Mitigación planificada:** aplicar `authGuard('admin')` a todo el grupo `/api/admin` (registrar el guard a nivel de plugin/prefijo). Ver [ROADMAP-0001 H1](ROADMAP-0001-estrategico-3-anios.md).
+> Nota de revisión (2026-07-27): una versión previa de este documento marcaba `/api/admin` como "hallazgo abierto". Fue un **falso positivo**: los handlers no llevan `authGuard` individual porque la protección está en el hook de plugin. Verificado en código.
 
 ## 4. Protección de datos
 - **En tránsito:** HTTPS (TLS del nginx del host, certbot).
@@ -45,8 +45,8 @@ El asistente/operador **no** transmite secretos: al pegar salidas de comandos de
 | Vector | Estado |
 |--------|--------|
 | Puertos expuestos | Solo `web` en `127.0.0.1:8095`; db/redis/api/osrm internos |
-| CORS | Hoy refleja el origen → **acotar** al dominio de producción (pendiente) |
-| Fuerza bruta login | Sin rate limiting → **agregar** (pendiente) |
+| CORS | ✅ En prod acotado a `https://flota.simarp.net` (`CORS_ORIGIN`, `docker-compose.prod.yml:56`). El reflejo abierto (`*`) solo se activa manualmente para túneles de prueba |
+| Fuerza bruta login | Sin rate limiting → **agregar** (pendiente real) |
 | Enumeración de usuarios | Login devuelve error genérico (bien) |
 | Tokens robados | Expiran a 30 días; sin revocación → evaluar refresh/blacklist |
 
@@ -68,13 +68,13 @@ El asistente/operador **no** transmite secretos: al pegar salidas de comandos de
 | **R**epudiation | Negar una acción | Marcas de tiempo; **falta** log de auditoría |
 | **I**nfo disclosure | Fuga de datos/secretos | HTTPS, secretos fuera del repo, superficie mínima |
 | **D**enial of service | Flood a login/ruteo | **Falta** rate limiting; caché de ruteo ayuda |
-| **E**levation | No-admin usa admin | **Hallazgo abierto §3** |
+| **E**levation | No-admin usa admin | ✅ Mitigado: `authGuard('admin')` a nivel de plugin (§3) |
 
 ## 10. Checklist de endurecimiento (H1)
-- [ ] `authGuard('admin')` en todo `/api/admin`.
-- [ ] Rate limiting en `/api/auth/*`.
-- [ ] CORS restringido al dominio de producción.
-- [ ] Log de auditoría de acciones admin + `trip_events`.
+- [x] `authGuard('admin')` en todo `/api/admin` — ✅ ya implementado (hook de plugin).
+- [x] CORS restringido al dominio de producción — ✅ ya configurado en prod.
+- [ ] Rate limiting en `/api/auth/*` (pendiente real).
+- [ ] Log de auditoría de acciones admin + `trip_events` (pendiente real).
 - [ ] Política de retención de ubicaciones.
 - [ ] Procedimiento documentado de rotación de `JWT_SECRET` y claves.
 - [ ] Revisión de dependencias (`npm audit`) en CI.

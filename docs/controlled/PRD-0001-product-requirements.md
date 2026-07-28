@@ -197,7 +197,8 @@ Detalle y riesgos en [09 · Integrations](../09-integrations/README.md).
 |--------|---------|-----------|
 | Calidad de datos OSM en zonas específicas | Rutas subóptimas | Motor Google + arrastrar pin |
 | Costo de Google Directions al escalar | Costo variable | Caché + fallback OSRM + monitoreo de uso |
-| Autorización admin incompleta | Seguridad | Endurecer `authGuard('admin')` (SEC/roadmap) |
+| Falta de rate limiting en login | Seguridad | Agregar rate limiting en `/api/auth/*` (SEC/roadmap) |
+| Sin log de auditoría de acciones admin | Trazabilidad | Agregar `trip_events` + log de admin (SEC/roadmap) |
 | Dependencia de un VPS compartido | Disponibilidad | Backups + plan de aislamiento (OPS/roadmap) |
 | Pérdida de datos por volumen mal manejado | Alto | Procedimiento de backup y cuidado con volúmenes |
 

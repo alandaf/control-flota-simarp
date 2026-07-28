@@ -32,7 +32,7 @@ Usamos el modelo de 3 horizontes:
 
 ✅ Producto en producción con 3 roles, ruteo real intercambiable, tiempo real, navegación con recálculo y voz, dashboard de negocio, tarifas y empresas, PWA. Ver [PRD-0001](PRD-0001-product-requirements.md).
 
-Brechas conocidas: facturación no cerrada, autorización admin incompleta, sin instrumentación de métricas, backups no automatizados, VPS compartido.
+Brechas conocidas: facturación no cerrada, sin rate limiting ni log de auditoría, sin instrumentación de métricas, backups no automatizados, VPS compartido.
 
 ## 4. Horizonte 1 — Consolidar (2026 H2 – 2027 H1)
 
@@ -41,7 +41,7 @@ Brechas conocidas: facturación no cerrada, autorización admin incompleta, sin 
 |-------|--------------------|-----------|
 | **Facturación B2B** | Folio por servicio, estado pagado/pendiente, reporte por empresa/período | PRD §5.2 |
 | **Portal empresa cliente** | Login del cliente para ver sus servicios y montos | PRD §4 |
-| **Endurecimiento de seguridad** | `authGuard('admin')`, rate limiting, CORS acotado | [SEC-0001](SEC-0001-seguridad.md) |
+| **Endurecimiento de seguridad** | Rate limiting en login, log de auditoría (`authGuard('admin')` y CORS ✅ ya hechos) | [SEC-0001](SEC-0001-seguridad.md) |
 | **Observabilidad** | Instrumentar North Star y KPIs; alertas de salud | [OPS-0001](OPS-0001-operacion-despliegue.md) |
 | **Backups y aislamiento** | Backups automáticos; plan de VPS dedicado | OPS |
 
@@ -52,7 +52,7 @@ Brechas conocidas: facturación no cerrada, autorización admin incompleta, sin 
 
 ### Métricas objetivo H1
 - Tasa de finalización > 90%; tiempo de asignación < 60 s.
-- 100% de `/api/admin` con autorización de rol.
+- Rate limiting activo en autenticación; log de auditoría de acciones admin.
 - Cierre de facturación mensual sin planillas externas.
 
 ## 5. Horizonte 2 — Escalar (2027 H2 – 2028 H1)
