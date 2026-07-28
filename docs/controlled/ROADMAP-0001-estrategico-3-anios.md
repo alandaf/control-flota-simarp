@@ -95,3 +95,30 @@ Métricas: > N operadoras activas; > X% de viajes reservados con antelación; ch
 - Equipo de desarrollo incremental (ver [INV-0001](INV-0001-inversionistas.md) §uso de fondos).
 
 > Este roadmap es **direccional**, no un compromiso de fechas fijas. Se revisa cada trimestre.
+
+## 10. Reconciliación con la propuesta de 8 fases
+
+Se recibió una propuesta externa (`docs/FLOTA_Product_Roadmap_v1.0.md`, ahora marcada como reemplazada por este documento). Aporta buena visión de largo plazo, pero **subestima lo ya construido**. Mapeo de sus 8 fases al estado real:
+
+| Fase propuesta (versión) | Estado real | Qué falta realmente |
+|--------------------------|-------------|---------------------|
+| **1 · MVP (v1.0)** | 🟢 ~90% hecho | Solo "asignación manual por admin" (hoy el conductor se auto-asigna del pool) |
+| **2 · Operación pro (v1.5)** | 🟡 ~40% | Dashboard y mapa en vivo ✅. Falta **panel de alertas** (atraso, GPS sin señal, desvío), puntualidad, timeline visual |
+| **3 · Gestión integral (v2.0)** | 🔴 ~15% | Mantenimiento, documentación vehicular (rev. técnica/seguro/vencimientos), **folio + facturación**, contratos/centros de costo |
+| **4 · Inteligencia (v2.5)** | 🔴 ~5% | ETA existe pero no "inteligente"; optimización/predicción/asistente ❌ |
+| **5 · Enterprise (v3.0)** | 🟡 ~25% | **API REST ✅** (documentada en [API-0001](API-0001-README.md)). Falta multi-tenant real, white-label, webhooks, **auditoría** |
+| **6 · BI (v3.5)** | 🟡 ~40% | Cancelaciones, ranking conductores/clientes ✅. Falta **costo por viaje/km** (requiere datos de costos → depende de Fase 3), utilización de flota |
+| **7 · ML (v4.0)** | 🔴 0% | Todo futuro |
+| **8 · Ecosistema portales (v5.0)** | 🟡 | App pasajero/conductor ✅ (roles PWA). Faltan portales empresa/RRHH/mantención/gerencia |
+
+### Aclaraciones críticas de la propuesta
+1. **"Multiempresa" es ambiguo.** *Empresa cliente* (a quién se factura) **ya existe**; *multi-tenant / multi-operadora* (varias operadoras aisladas) **no existe** y es un cambio arquitectónico mayor. Definir cuál antes de priorizar.
+2. **"Costo por viaje/km" depende de datos que aún no se capturan** (combustible, mantención, sueldos): requiere primero el módulo de Mantenimiento.
+3. **Alertas (Fase 2) es quick win**: el *desvío de ruta* ya se detecta en el cliente ([ADR-0003](../adr/0003-navegacion-por-proyeccion-sobre-ruta.md)); solo falta propagarlo al panel del admin.
+
+### Orden ejecutable (mapeado a horizontes de este documento)
+- **H1:** Facturación B2B (folio + estado pagado/pendiente + reporte por empresa) = Fase 3 "Clientes" + Fase 8 "Portal Facturación". ✅ **Núcleo implementado** (`003_billing.sql`, pestaña "Facturación" en el admin). Falta el **portal de autoservicio del cliente**.
+- **H1 siguiente:** Panel de alertas (Fase 2).
+- **H1/H2:** Decisión y diseño de multi-tenant (Fase 5) si el negocio vende a varias operadoras.
+- **H2+:** Mantenimiento y documentación vehicular (Fase 3) → habilita costos/BI (Fase 6).
+- **H3:** Inteligencia/ML/gemelo digital (Fases 4/7), tras tener tracción y datos.

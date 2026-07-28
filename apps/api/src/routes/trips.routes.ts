@@ -245,6 +245,11 @@ export async function tripRoutes(app: FastifyInstance) {
       next === 'completed' ? ', completed_at = now()' : '';
     await query(`UPDATE trips SET status = $1 ${stamp} WHERE id = $2`, [next, tripId]);
 
+    // Al completar, asigna folio (N° de servicio) si aún no lo tiene → queda facturable
+    if (next === 'completed') {
+      await query(`UPDATE trips SET folio = nextval('trip_folio_seq') WHERE id = $1 AND folio IS NULL`, [tripId]);
+    }
+
     if (['completed', 'cancelled'].includes(next)) {
       await query(
         `UPDATE drivers SET status = 'available', trips_count = trips_count + $1 WHERE user_id = $2`,

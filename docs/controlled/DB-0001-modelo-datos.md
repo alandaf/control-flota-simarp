@@ -7,7 +7,7 @@
 | **Estado** | Aprobado |
 | **Dueño** | Ingeniería / Datos |
 | **Fecha** | 2026-07-27 |
-| **Fuente** | `apps/api/migrations/001_init.sql`, `002_business.sql` |
+| **Fuente** | `apps/api/migrations/001_init.sql`, `002_business.sql`, `003_billing.sql` |
 
 ---
 
@@ -76,6 +76,9 @@ companies (1) ───< (N) users (1) ───(1) drivers (N) >─── (1) v
 | fare | int | CLP |
 | notes | varchar(255) | |
 | company_id | int FK→companies | denormalizado para facturación estable |
+| folio | int UNIQUE | N° de servicio; asignado desde `trip_folio_seq` al completar |
+| billing_status | varchar(10) | `pending\|paid\|void` (def. `pending`) |
+| paid_at | timestamptz | cuándo se marcó pagado |
 | requested_at / accepted_at / started_at / completed_at | timestamptz | marcas del ciclo |
 
 Índices: `(status)`, `(passenger_id)`, `(driver_id)`, `(company_id)`.
@@ -102,7 +105,8 @@ Datos de contrato + overrides de tarifa (`fare_base/per_km/per_min/minimum`, NUL
 
 ## 6. Evolución del esquema
 - Nuevos cambios = migración `003_*.sql` idempotente. No se editan migraciones aplicadas.
-- Cambios candidatos (roadmap): tabla `invoices`/`billing` (folio, estado pagado/pendiente, período), `trip_events` (auditoría de estados), retención de ubicaciones históricas.
+- Facturación B2B implementada en `003_billing.sql` (folio + estado pagado/pendiente sobre `trips`).
+- Cambios candidatos (roadmap): tabla `invoices` formal (documento por período/empresa), `trip_events` (auditoría de estados), retención de ubicaciones históricas.
 
 ## 7. Respaldo
 Ver [OPS-0001 §Backups](OPS-0001-operacion-despliegue.md). Nunca borrar el volumen de datos al recrear el stack.

@@ -4,15 +4,16 @@ import { createMap, driverMarkerIcon, SANTIAGO } from '../lib/mapkit';
 import { api, es, initials, money } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
-import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle, Building, Settings, Printer } from '../components/Icons';
+import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle, Building, Settings, Printer, Receipt } from '../components/Icons';
 import { TrendChart, Bars, Donut } from '../components/Charts';
 
-type View = 'dashboard' | 'map' | 'trips' | 'drivers' | 'vehicles' | 'users' | 'companies' | 'settings';
+type View = 'dashboard' | 'map' | 'trips' | 'billing' | 'drivers' | 'vehicles' | 'users' | 'companies' | 'settings';
 
 // Formateadores
 const cl = (n: number) => Number(n || 0).toLocaleString('es-CL');
 const money0 = (n: number) => '$' + cl(Math.round(n || 0));
 const moneyK = (n: number) => (n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + Math.round(n / 1000) + 'K' : '$' + cl(Math.round(n)));
+const esBilling = (s: string) => (s === 'paid' ? 'Pagado' : s === 'void' ? 'Anulado' : 'Pendiente');
 
 export default function Admin() {
   const { user, logout } = useAuth();
@@ -31,6 +32,7 @@ export default function Admin() {
       <div className="adminnav">
         {([
           ['dashboard', 'Dashboard', <Grid />], ['map', 'Mapa en vivo', <MapIcon />], ['trips', 'Reportes', <Route />],
+          ['billing', 'Facturación', <Receipt />],
           ['drivers', 'Conductores', <Wheel />], ['vehicles', 'Vehículos', <Truck />], ['users', 'Usuarios', <UsersIcon />],
           ['companies', 'Empresas', <Building />], ['settings', 'Tarifas', <Settings />],
         ] as [View, string, JSX.Element][]).map(([v, label, icon]) => (
@@ -42,6 +44,7 @@ export default function Admin() {
         <div className="scroll">
           {view === 'dashboard' && <Dashboard onGo={setView} />}
           {view === 'trips' && <Trips />}
+          {view === 'billing' && <Billing />}
           {view === 'drivers' && <Drivers />}
           {view === 'vehicles' && <Vehicles />}
           {view === 'users' && <Users />}
@@ -261,6 +264,11 @@ function Trips() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [from, to, status, driverId, companyId]);
 
+  async function markBilling(id: number, billing_status: string) {
+    await api('/api/admin/trip_billing', { trip_id: id, billing_status }).catch(() => {});
+    load();
+  }
+
   const completed = trips.filter((t) => t.status === 'completed');
   const totalRevenue = completed.reduce((s, t) => s + (t.fare || 0), 0);
   const totalKm = completed.reduce((s, t) => s + Number(t.distance_km || 0), 0);
@@ -270,11 +278,12 @@ function Trips() {
   const driverName = drivers.find((d) => String(d.id) === driverId)?.name;
 
   function exportCSV() {
-    const head = ['ID', 'Fecha', 'Empresa', 'Pasajero', 'Conductor', 'Patente', 'Origen', 'Destino', 'Km', 'Tarifa', 'Estado'];
+    const head = ['ID', 'Folio', 'Fecha', 'Empresa', 'Pasajero', 'Conductor', 'Patente', 'Origen', 'Destino', 'Km', 'Tarifa', 'Estado', 'Facturación'];
     const rows = trips.map((t) => [
-      t.id, String(t.requested_at || '').slice(0, 16).replace('T', ' '), t.company_name || '',
+      t.id, t.folio ?? '', String(t.requested_at || '').slice(0, 16).replace('T', ' '), t.company_name || '',
       t.passenger_name || '', t.driver_name || '', t.plate || '',
       t.origin_address || '', t.dest_address || '', t.distance_km ?? '', t.fare ?? '', es(t.status),
+      t.status === 'completed' ? esBilling(t.billing_status) : '',
     ]);
     const esc = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
     const csv = '﻿' + [head, ...rows].map((r) => r.map(esc).join(';')).join('\r\n');
@@ -335,12 +344,12 @@ function Trips() {
         <div className="card">
           <div style={{ overflowX: 'auto' }}>
             <table>
-              <thead><tr><th>#</th><th>Fecha</th><th>Empresa</th><th>Pasajero</th><th>Conductor</th><th>Patente</th><th>Km</th><th>Tarifa</th><th>Estado</th></tr></thead>
+              <thead><tr><th>Folio</th><th>Fecha</th><th>Empresa</th><th>Pasajero</th><th>Conductor</th><th>Patente</th><th>Km</th><th>Tarifa</th><th>Estado</th><th className="no-print">Facturación</th></tr></thead>
               <tbody>
-                {trips.length === 0 ? <tr><td colSpan={9} className="muted center" style={{ padding: 24 }}>Sin servicios en el período.</td></tr> :
+                {trips.length === 0 ? <tr><td colSpan={10} className="muted center" style={{ padding: 24 }}>Sin servicios en el período.</td></tr> :
                   trips.map((t) => (
                     <tr key={t.id}>
-                      <td>{t.id}</td>
+                      <td className="tnum">{t.folio ? String(t.folio).padStart(5, '0') : '—'}</td>
                       <td className="muted">{String(t.requested_at || '').slice(0, 16).replace('T', ' ')}</td>
                       <td>{t.company_name || '—'}</td>
                       <td>{t.passenger_name}</td>
@@ -349,6 +358,91 @@ function Trips() {
                       <td>{t.distance_km ?? '—'}</td>
                       <td className="tnum">{money0(t.fare || 0)}</td>
                       <td><span className={`badge ${t.status}`}>{es(t.status)}</span></td>
+                      <td className="no-print">
+                        {t.status === 'completed'
+                          ? (t.billing_status === 'paid'
+                              ? <button className="btn small ghost" title="Marcar pendiente" onClick={() => markBilling(t.id, 'pending')}><span className="badge completed">✓ Pagado</span></button>
+                              : <button className="btn small secondary" onClick={() => markBilling(t.id, 'paid')}>Marcar pagado</button>)
+                          : <span className="muted">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Billing() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [totals, setTotals] = useState<any>({ services: 0, total: 0, paid: 0, pending: 0 });
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+
+  const load = () => {
+    const qs = new URLSearchParams();
+    if (from) qs.set('from', from);
+    if (to) qs.set('to', to);
+    api<{ rows: any[]; totals: any }>(`/api/admin/billing?${qs.toString()}`)
+      .then((d) => { setRows(d.rows); setTotals(d.totals); }).catch(() => {});
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [from, to]);
+
+  function exportCSV() {
+    const head = ['Empresa', 'Servicios', 'Total', 'Pagado', 'Pendiente'];
+    const data = rows.map((r) => [r.company_name, r.services, r.total, r.paid, r.pending]);
+    const esc = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = '﻿' + [head, ...data].map((r) => r.map(esc).join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `facturacion_${from || 'todo'}_${to || 'hoy'}.csv`;
+    a.click();
+  }
+
+  return (
+    <>
+      <div className="filters no-print">
+        <div className="f"><label>Desde</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+        <div className="f"><label>Hasta</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+        {(from || to) && <button className="btn small ghost" onClick={() => { setFrom(''); setTo(''); }}>Limpiar</button>}
+        <button className="btn small secondary" onClick={() => window.print()}><Printer /> Imprimir / PDF</button>
+        <button className="btn small" onClick={exportCSV}>⬇ CSV</button>
+      </div>
+
+      <div className="report-print">
+        <div className="print-head">
+          <div className="brand" style={{ fontSize: 16 }}><span className="mark"><Logo /></span> Estado de facturación por empresa</div>
+          <div className="muted">Período: {from || 'inicio'} a {to || 'hoy'} · Solo servicios completados · Generado {new Date().toLocaleDateString('es-CL')}</div>
+        </div>
+
+        <div className="report-tot">
+          <div className="t">Servicios<b>{cl(totals.services)}</b></div>
+          <div className="t">Total<b>{money0(totals.total)}</b></div>
+          <div className="t">Pagado<b>{money0(totals.paid)}</b></div>
+          <div className="t">Pendiente<b style={{ color: totals.pending > 0 ? 'var(--warn)' : undefined }}>{money0(totals.pending)}</b></div>
+        </div>
+
+        <div className="card">
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead><tr><th>Empresa</th><th>Servicios</th><th>Total</th><th>Pagado</th><th>Pendiente</th></tr></thead>
+              <tbody>
+                {rows.length === 0 ? <tr><td colSpan={5} className="muted center" style={{ padding: 24 }}>Sin servicios completados en el período.</td></tr> :
+                  rows.map((r) => (
+                    <tr key={r.company_id ?? 'none'}>
+                      <td>{r.company_name}</td>
+                      <td className="tnum">{cl(r.services)}</td>
+                      <td className="tnum">{money0(r.total)}</td>
+                      <td className="tnum">{money0(r.paid)}</td>
+                      <td className="tnum">
+                        {r.pending > 0
+                          ? <span style={{ color: 'var(--warn)', fontWeight: 600 }}>{money0(r.pending)}</span>
+                          : <span className="muted">{money0(0)}</span>}
+                        {r.pending_count > 0 && <span className="muted"> · {r.pending_count} serv.</span>}
+                      </td>
                     </tr>
                   ))}
               </tbody>

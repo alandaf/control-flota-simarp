@@ -1,3 +1,8 @@
+> ⚠️ **Documento reemplazado.** Esta propuesta se reconcilió con el roadmap controlado
+> [ROADMAP-0001](controlled/ROADMAP-0001-estrategico-3-anios.md), que **manda**.
+> Ver el análisis fase-por-fase vs. lo ya construido en ROADMAP-0001 §10.
+> Este archivo se conserva como insumo histórico.
+
 # FLOTA -- Product Roadmap (Propuesta)
 
 **Versión:** 1.0\

@@ -337,7 +337,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const trips = await query(`
       SELECT t.id, t.status, t.distance_km, t.fare, t.requested_at, t.completed_at,
-        t.origin_address, t.dest_address,
+        t.origin_address, t.dest_address, t.folio, t.billing_status, t.paid_at,
         p.name AS passenger_name, d.name AS driver_name, v.plate,
         co.name AS company_name
       FROM trips t
@@ -349,5 +349,55 @@ export async function adminRoutes(app: FastifyInstance) {
       ${where}
       ORDER BY t.id DESC LIMIT 1000`, params);
     return { ok: true, trips };
+  });
+
+  // ---- Facturación: marcar un servicio como pagado / pendiente ----
+  app.post('/trip_billing', async (req, reply) => {
+    const b = req.body as any;
+    const id = Number(b?.trip_id ?? 0);
+    const st = String(b?.billing_status ?? '');
+    if (!id || !['pending', 'paid', 'void'].includes(st))
+      return reply.code(400).send({ ok: false, error: 'Datos inválidos' });
+    await query(
+      `UPDATE trips SET billing_status = $1, paid_at = CASE WHEN $1 = 'paid' THEN now() ELSE NULL END
+       WHERE id = $2 AND status = 'completed'`,
+      [st, id]
+    );
+    return { ok: true };
+  });
+
+  // ---- Facturación: resumen por empresa (servicios completados en el período) ----
+  app.get('/billing', async (req) => {
+    const TZ = 'America/Santiago';
+    const q = req.query as any;
+    const cond: string[] = [`t.status = 'completed'`];
+    const params: any[] = [];
+    if (q?.from) { params.push(q.from); cond.push(`(t.completed_at AT TIME ZONE '${TZ}')::date >= $${params.length}::date`); }
+    if (q?.to) { params.push(q.to); cond.push(`(t.completed_at AT TIME ZONE '${TZ}')::date <= $${params.length}::date`); }
+    const where = 'WHERE ' + cond.join(' AND ');
+
+    const rows = await query(`
+      SELECT
+        co.id AS company_id,
+        COALESCE(co.name, 'Sin empresa (particular)') AS company_name,
+        COUNT(*)::int AS services,
+        COALESCE(SUM(t.fare), 0)::int AS total,
+        COALESCE(SUM(t.fare) FILTER (WHERE t.billing_status = 'paid'), 0)::int AS paid,
+        COALESCE(SUM(t.fare) FILTER (WHERE t.billing_status = 'pending'), 0)::int AS pending,
+        COUNT(*) FILTER (WHERE t.billing_status = 'pending')::int AS pending_count
+      FROM trips t
+      LEFT JOIN companies co ON co.id = t.company_id
+      ${where}
+      GROUP BY co.id, co.name
+      ORDER BY pending DESC, total DESC`, params);
+
+    const totals = rows.reduce(
+      (a: any, r: any) => ({
+        services: a.services + r.services, total: a.total + r.total,
+        paid: a.paid + r.paid, pending: a.pending + r.pending,
+      }),
+      { services: 0, total: 0, paid: 0, pending: 0 }
+    );
+    return { ok: true, rows, totals };
   });
 }

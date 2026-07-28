@@ -307,6 +307,50 @@ paths:
     post: { tags: [admin], summary: Guardar tarifas globales, responses: { '200': { description: OK } } }
   /api/admin/stats:
     get: { tags: [admin], summary: Totales rápidos, responses: { '200': { description: OK } } }
+  /api/admin/billing:
+    get:
+      tags: [admin]
+      summary: Resumen de facturación por empresa (servicios completados)
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        company_id: { type: integer, nullable: true }
+                        company_name: { type: string }
+                        services: { type: integer }
+                        total: { type: integer }
+                        paid: { type: integer }
+                        pending: { type: integer }
+                        pending_count: { type: integer }
+                  totals: { type: object }
+  /api/admin/trip_billing:
+    post:
+      tags: [admin]
+      summary: Marcar estado de facturación de un servicio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trip_id, billing_status]
+              properties:
+                trip_id: { type: integer }
+                billing_status: { type: string, enum: [pending, paid, void] }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Ok' } } } } }
 
 components:
   securitySchemes:
@@ -404,6 +448,9 @@ components:
         dest_address: { type: string }
         distance_km: { type: number }
         fare: { type: integer }
+        folio: { type: integer, nullable: true, description: N° de servicio, asignado al completar }
+        billing_status: { type: string, enum: [pending, paid, void] }
+        paid_at: { type: string, format: date-time, nullable: true }
         requested_at: { type: string, format: date-time }
     TripResult:
       type: object
