@@ -353,6 +353,31 @@ paths:
     post: { tags: [admin], summary: Guardar tarifas globales, responses: { '200': { description: OK } } }
   /api/admin/stats:
     get: { tags: [admin], summary: Totales rápidos, responses: { '200': { description: OK } } }
+  /api/admin/alerts:
+    get:
+      tags: [admin]
+      summary: Alertas operativas en vivo (centro de operaciones)
+      description: Deriva alertas del estado actual — sin señal GPS, solicitud sin conductor, recogida demorada, viaje prolongado.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  count: { type: integer }
+                  alerts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        type: { type: string, enum: [gps, unassigned, pickup, long] }
+                        severity: { type: string, enum: [danger, warn, info] }
+                        title: { type: string }
+                        detail: { type: string }
   /api/admin/billing:
     get:
       tags: [admin]

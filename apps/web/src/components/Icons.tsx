@@ -96,6 +96,9 @@ export const Printer = (p: P) => (
 export const Receipt = (p: P) => (
   <svg {...base(p)}><path d="M5 3v18l2-1.2L9 21l2-1.2L13 21l2-1.2L17 21l2-1.2V3l-2 1.2L15 3l-2 1.2L11 3 9 4.2 7 3 5 4.2 Z" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
 );
+export const Bell = (p: P) => (
+  <svg {...base(p)}><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+);
 export const Play = (p: P) => (
   <svg {...base({ ...p, fill: 'currentColor', stroke: 'none' })}><path d="M7 4.5v15l12-7.5L7 4.5Z" /></svg>
 );

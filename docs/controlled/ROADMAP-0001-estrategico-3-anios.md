@@ -103,7 +103,7 @@ Se recibió una propuesta externa (`docs/FLOTA_Product_Roadmap_v1.0.md`, ahora m
 | Fase propuesta (versión) | Estado real | Qué falta realmente |
 |--------------------------|-------------|---------------------|
 | **1 · MVP (v1.0)** | 🟢 ~90% hecho | Solo "asignación manual por admin" (hoy el conductor se auto-asigna del pool) |
-| **2 · Operación pro (v1.5)** | 🟡 ~40% | Dashboard y mapa en vivo ✅. Falta **panel de alertas** (atraso, GPS sin señal, desvío), puntualidad, timeline visual |
+| **2 · Operación pro (v1.5)** | 🟡 ~60% | Dashboard, mapa en vivo y **panel de alertas** ✅ (GPS sin señal, solicitud sin conductor, recogida demorada, viaje prolongado). Falta: puntualidad, timeline visual, alerta de desvío propagada |
 | **3 · Gestión integral (v2.0)** | 🔴 ~15% | Mantenimiento, documentación vehicular (rev. técnica/seguro/vencimientos), **folio + facturación**, contratos/centros de costo |
 | **4 · Inteligencia (v2.5)** | 🔴 ~5% | ETA existe pero no "inteligente"; optimización/predicción/asistente ❌ |
 | **5 · Enterprise (v3.0)** | 🟡 ~25% | **API REST ✅** (documentada en [API-0001](API-0001-README.md)). Falta multi-tenant real, white-label, webhooks, **auditoría** |
@@ -118,7 +118,7 @@ Se recibió una propuesta externa (`docs/FLOTA_Product_Roadmap_v1.0.md`, ahora m
 
 ### Orden ejecutable (mapeado a horizontes de este documento)
 - **H1:** Facturación B2B (folio + estado pagado/pendiente + reporte por empresa) = Fase 3 "Clientes" + Fase 8 "Portal Facturación". ✅ **Implementado** (`003_billing.sql` + pestaña "Facturación" admin) **incluido el portal de autoservicio del cliente** (rol `company`, `004_company_portal.sql`, `/api/company/*`, página `/company` solo lectura).
-- **H1 siguiente:** Panel de alertas (Fase 2).
+- **H1:** Panel de alertas (Fase 2). ✅ **Implementado** — centro de operaciones en el admin (`/api/admin/alerts` + pestaña "Alertas" con badge, polling 12 s + refresco por socket). Alertas: sin señal GPS, solicitud sin conductor, recogida demorada, viaje prolongado. Pendiente evaluar: propagar el *desvío de ruta* (ya detectado en el cliente) como alerta.
 - **H1/H2:** Decisión y diseño de multi-tenant (Fase 5) si el negocio vende a varias operadoras.
 - **H2+:** Mantenimiento y documentación vehicular (Fase 3) → habilita costos/BI (Fase 6).
 - **H3:** Inteligencia/ML/gemelo digital (Fases 4/7), tras tener tracción y datos.

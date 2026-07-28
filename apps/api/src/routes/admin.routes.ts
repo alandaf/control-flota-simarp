@@ -402,4 +402,62 @@ export async function adminRoutes(app: FastifyInstance) {
     );
     return { ok: true, rows, totals };
   });
+
+  // ---- Centro de operaciones: alertas en vivo (derivadas del estado actual) ----
+  app.get('/alerts', async () => {
+    const humanSecs = (s: number) => {
+      s = Math.max(0, Math.round(s));
+      if (s < 60) return `${s} s`;
+      if (s < 3600) return `${Math.round(s / 60)} min`;
+      return `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
+    };
+    const alerts: any[] = [];
+
+    // 1) Sin señal GPS: conductor en viaje (busy) sin actualizar posición hace > 90 s
+    const gps = await query<any>(`
+      SELECT u.id, u.name, EXTRACT(EPOCH FROM (now() - dr.updated_at))::int AS secs
+      FROM drivers dr JOIN users u ON u.id = dr.user_id
+      WHERE dr.status = 'busy' AND dr.updated_at < now() - interval '90 seconds'
+      ORDER BY dr.updated_at ASC`);
+    for (const d of gps) alerts.push({
+      id: `gps-${d.id}`, type: 'gps', severity: 'danger',
+      title: 'Sin señal GPS en viaje', detail: `${d.name} — sin actualizar hace ${humanSecs(d.secs)}`,
+    });
+
+    // 2) Solicitud sin conductor: viaje 'requested' hace > 3 min
+    const unassigned = await query<any>(`
+      SELECT t.id, EXTRACT(EPOCH FROM (now() - t.requested_at))::int AS secs
+      FROM trips t WHERE t.status = 'requested' AND t.requested_at < now() - interval '3 minutes'
+      ORDER BY t.requested_at ASC`);
+    for (const t of unassigned) alerts.push({
+      id: `unassigned-${t.id}`, type: 'unassigned', severity: 'warn',
+      title: 'Solicitud sin conductor', detail: `Servicio #${t.id} esperando hace ${humanSecs(t.secs)}`,
+    });
+
+    // 3) Recogida demorada: aceptado/llegó pero sin iniciar hace > 15 min
+    const pickup = await query<any>(`
+      SELECT t.id, u.name AS driver, EXTRACT(EPOCH FROM (now() - t.accepted_at))::int AS secs
+      FROM trips t LEFT JOIN users u ON u.id = t.driver_id
+      WHERE t.status IN ('accepted', 'arrived') AND t.accepted_at < now() - interval '15 minutes'
+      ORDER BY t.accepted_at ASC`);
+    for (const t of pickup) alerts.push({
+      id: `pickup-${t.id}`, type: 'pickup', severity: 'warn',
+      title: 'Recogida demorada', detail: `Servicio #${t.id}${t.driver ? ` · ${t.driver}` : ''} sin iniciar hace ${humanSecs(t.secs)}`,
+    });
+
+    // 4) Viaje prolongado: en curso hace > 60 min
+    const longtrip = await query<any>(`
+      SELECT t.id, u.name AS driver, EXTRACT(EPOCH FROM (now() - t.started_at))::int AS secs
+      FROM trips t LEFT JOIN users u ON u.id = t.driver_id
+      WHERE t.status = 'in_progress' AND t.started_at < now() - interval '60 minutes'
+      ORDER BY t.started_at ASC`);
+    for (const t of longtrip) alerts.push({
+      id: `long-${t.id}`, type: 'long', severity: 'info',
+      title: 'Viaje prolongado', detail: `Servicio #${t.id}${t.driver ? ` · ${t.driver}` : ''} en curso hace ${humanSecs(t.secs)}`,
+    });
+
+    const rank: Record<string, number> = { danger: 0, warn: 1, info: 2 };
+    alerts.sort((a, b) => rank[a.severity] - rank[b.severity]);
+    return { ok: true, alerts, count: alerts.length };
+  });
 }

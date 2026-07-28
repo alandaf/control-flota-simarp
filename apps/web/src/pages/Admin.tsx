@@ -4,10 +4,10 @@ import { createMap, driverMarkerIcon, SANTIAGO } from '../lib/mapkit';
 import { api, es, initials, money } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
-import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle, Building, Settings, Printer, Receipt } from '../components/Icons';
+import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle, Building, Settings, Printer, Receipt, Bell } from '../components/Icons';
 import { TrendChart, Bars, Donut } from '../components/Charts';
 
-type View = 'dashboard' | 'map' | 'trips' | 'billing' | 'drivers' | 'vehicles' | 'users' | 'companies' | 'settings';
+type View = 'dashboard' | 'map' | 'alerts' | 'trips' | 'billing' | 'drivers' | 'vehicles' | 'users' | 'companies' | 'settings';
 
 // Formateadores
 const cl = (n: number) => Number(n || 0).toLocaleString('es-CL');
@@ -18,6 +18,19 @@ const esBilling = (s: string) => (s === 'paid' ? 'Pagado' : s === 'void' ? 'Anul
 export default function Admin() {
   const { user, logout } = useAuth();
   const [view, setView] = useState<View>('dashboard');
+  const [alerts, setAlerts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const load = () => api<{ alerts: any[] }>('/api/admin/alerts').then((d) => setAlerts(d.alerts)).catch(() => {});
+    load();
+    const iv = setInterval(load, 12000);
+    const s = getSocket();
+    const onRefresh = () => load();
+    s.on('admin:refresh', onRefresh);
+    return () => { clearInterval(iv); s.off('admin:refresh', onRefresh); };
+  }, []);
+
+  const alertCount = alerts.length;
 
   return (
     <div className="app">
@@ -31,18 +44,22 @@ export default function Admin() {
 
       <div className="adminnav">
         {([
-          ['dashboard', 'Dashboard', <Grid />], ['map', 'Mapa en vivo', <MapIcon />], ['trips', 'Reportes', <Route />],
-          ['billing', 'Facturación', <Receipt />],
+          ['dashboard', 'Dashboard', <Grid />], ['map', 'Mapa en vivo', <MapIcon />], ['alerts', 'Alertas', <Bell />],
+          ['trips', 'Reportes', <Route />], ['billing', 'Facturación', <Receipt />],
           ['drivers', 'Conductores', <Wheel />], ['vehicles', 'Vehículos', <Truck />], ['users', 'Usuarios', <UsersIcon />],
           ['companies', 'Empresas', <Building />], ['settings', 'Tarifas', <Settings />],
         ] as [View, string, JSX.Element][]).map(([v, label, icon]) => (
-          <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>{icon} {label}</button>
+          <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>
+            {icon} {label}
+            {v === 'alerts' && alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
+          </button>
         ))}
       </div>
 
       {view === 'map' ? <LiveMap /> : (
         <div className="scroll">
           {view === 'dashboard' && <Dashboard onGo={setView} />}
+          {view === 'alerts' && <Alerts alerts={alerts} />}
           {view === 'trips' && <Trips />}
           {view === 'billing' && <Billing />}
           {view === 'drivers' && <Drivers />}
@@ -236,6 +253,35 @@ function LiveMap() {
   }, []);
 
   return <div className="map-wrap"><div className="map" ref={mapDiv} /></div>;
+}
+
+function Alerts({ alerts }: { alerts: any[] }) {
+  const bySev = (s: string) => alerts.filter((a) => a.severity === s).length;
+  return (
+    <>
+      <div className="between mb">
+        <h3 className="row" style={{ gap: 8, alignItems: 'center', margin: 0 }}><Bell /> Centro de operaciones</h3>
+        <span className="muted" style={{ fontSize: 13 }}>
+          {alerts.length > 0
+            ? `${bySev('danger')} críticas · ${bySev('warn')} advertencias · ${bySev('info')} info`
+            : 'Actualiza cada 12 s'}
+        </span>
+      </div>
+
+      {alerts.length === 0 ? (
+        <div className="card"><p className="center" style={{ padding: 28, color: 'var(--go)', fontWeight: 600 }}>✓ Sin alertas · operación en orden</p></div>
+      ) : (
+        <div className="alert-list">
+          {alerts.map((a) => (
+            <div key={a.id} className={`alert-item ${a.severity}`}>
+              <span className={`dot ${a.severity}`} />
+              <div><b>{a.title}</b><div className="muted">{a.detail}</div></div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
 function Trips() {

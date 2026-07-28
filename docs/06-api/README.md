@@ -60,6 +60,7 @@ Referencia de la API HTTP y del contrato de tiempo real. Base en producción: `h
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `/stats` | Totales rápidos (usuarios, conductores, viajes, etc.) |
+| GET | `/alerts` | Alertas operativas en vivo (GPS sin señal, solicitud sin conductor, recogida demorada, viaje prolongado) |
 | GET | `/analytics` | KPIs + series: diaria, por estado, por hora, por día de semana, top conductores, por empresa |
 | GET | `/drivers_map` | Posición actual de conductores para el mapa en vivo |
 | GET | `/users` | Lista de usuarios (con empresa) |
