@@ -4,6 +4,11 @@ Documentación viva del proyecto **Control Flota**: plataforma tipo Uber/Cabify 
 
 > **En producción:** https://flota.simarp.net
 
+## Dos capas de documentación
+
+- 📗 **[Documentos controlados](controlled/README.md)** — la capa **formal y canónica** (PRD, ROADMAP, ADR, ARCH, DB, API/OpenAPI, UX, SEC, OPS, INV). Para incorporar equipo, presentar a clientes grandes y respaldar inversión. **Cuando ambos hablen del mismo tema, manda el documento controlado.**
+- 📘 **Handbook (abajo, 00–10)** — la capa **operativa/rápida** que alimenta a los controlados.
+
 ## Cómo está organizada
 
 Cada carpeta es una vista distinta del mismo producto. Empieza por **00 → 02** para entender el "qué" y el "cómo" a alto nivel; baja a **04 → 09** para el detalle técnico.
