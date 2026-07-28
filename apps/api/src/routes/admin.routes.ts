@@ -9,6 +9,16 @@ export async function adminRoutes(app: FastifyInstance) {
   // Todas las rutas requieren rol admin
   app.addHook('preHandler', authGuard('admin'));
 
+  // Bitácora: registra una acción de administración (nunca rompe la petición)
+  async function audit(req: any, action: string, entity: string, entityId: number | null, detail: string) {
+    const u = req.user as AuthUser | undefined;
+    await query(
+      `INSERT INTO audit_log (actor_id, actor_name, action, entity, entity_id, detail)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [u?.id ?? null, u?.name ?? null, action, entity, entityId, detail]
+    ).catch(() => {});
+  }
+
   // ---- Indicadores ----
   app.get('/stats', async () => {
     const s = await one<any>(`
@@ -121,7 +131,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // ---- Usuarios ----
   app.get('/users', async (req) => {
     const role = (req.query as any)?.role;
-    const roles = ['passenger', 'driver', 'admin'];
+    const roles = ['passenger', 'driver', 'admin', 'company'];
     const where = roles.includes(role) ? 'WHERE u.role = $1' : '';
     const params = roles.includes(role) ? [role] : [];
     const users = await query(
@@ -136,10 +146,11 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.post('/toggle_user', async (req) => {
     const id = Number((req.body as any)?.id ?? 0);
-    await query(
+    const row = await one<any>(
       `UPDATE users SET status = CASE WHEN status = 'active' THEN 'inactive' ELSE 'active' END
-       WHERE id = $1 AND role <> 'admin'`, [id]
+       WHERE id = $1 AND role <> 'admin' RETURNING email, status`, [id]
     );
+    if (row) await audit(req, 'user_toggle', 'user', id, `${row.email} → ${row.status}`);
     return { ok: true };
   });
 
@@ -193,6 +204,8 @@ export async function adminRoutes(app: FastifyInstance) {
     if (u.role === 'driver') {
       await query(`INSERT INTO drivers (user_id, status) VALUES ($1,'offline') ON CONFLICT (user_id) DO NOTHING`, [userId]);
     }
+    await audit(req, u.id > 0 ? 'user_update' : 'user_create', 'user', userId,
+      `${email} (${u.role})${u.password ? ' · clave cambiada' : ''}`);
     return { ok: true, id: userId };
   });
 
@@ -201,7 +214,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const me = req.user as AuthUser;
     const id = Number((req.body as any)?.id ?? 0);
     if (id === me.id) return reply.code(400).send({ ok: false, error: 'No puedes eliminar tu propia cuenta' });
+    const victim = await one<any>('SELECT email FROM users WHERE id = $1', [id]);
     await query('DELETE FROM users WHERE id = $1', [id]);
+    await audit(req, 'user_delete', 'user', id, victim?.email ?? `#${id}`);
     return { ok: true };
   });
 
@@ -218,6 +233,7 @@ export async function adminRoutes(app: FastifyInstance) {
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [k, String(v)]);
     }
     await loadSettings();
+    await audit(req, 'settings_save', 'settings', null, 'tarifas globales actualizadas');
     return { ok: true, settings: allSettings() };
   });
 
@@ -256,16 +272,21 @@ export async function adminRoutes(app: FastifyInstance) {
     if (c.id > 0) {
       await query(`UPDATE companies SET name=$1,rut=$2,contact_name=$3,contact_email=$4,contact_phone=$5,
         address=$6,fare_base=$7,fare_per_km=$8,fare_per_min=$9,fare_minimum=$10,active=$11 WHERE id=$12`, [...vals, c.id]);
+      await audit(req, 'company_update', 'company', c.id, c.name);
       return { ok: true, id: c.id };
     }
     const row = await one<{ id: number }>(`INSERT INTO companies
       (name,rut,contact_name,contact_email,contact_phone,address,fare_base,fare_per_km,fare_per_min,fare_minimum,active)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, vals);
+    await audit(req, 'company_create', 'company', row!.id, c.name);
     return { ok: true, id: row!.id };
   });
 
   app.post('/company_delete', async (req) => {
-    await query('DELETE FROM companies WHERE id = $1', [Number((req.body as any)?.id ?? 0)]);
+    const id = Number((req.body as any)?.id ?? 0);
+    const co = await one<any>('SELECT name FROM companies WHERE id = $1', [id]);
+    await query('DELETE FROM companies WHERE id = $1', [id]);
+    await audit(req, 'company_delete', 'company', id, co?.name ?? `#${id}`);
     return { ok: true };
   });
 
@@ -301,6 +322,7 @@ export async function adminRoutes(app: FastifyInstance) {
         `UPDATE vehicles SET plate=$1, brand=$2, model=$3, color=$4, year=$5, capacity=$6, status=$7 WHERE id=$8`,
         [plate, v.brand, v.model, v.color, v.year ?? null, v.capacity, v.status, v.id]
       );
+      await audit(req, 'vehicle_update', 'vehicle', v.id, `${plate} ${v.brand} ${v.model}`);
       return { ok: true, id: v.id };
     }
     const row = await one<{ id: number }>(
@@ -308,18 +330,24 @@ export async function adminRoutes(app: FastifyInstance) {
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
       [plate, v.brand, v.model, v.color, v.year ?? null, v.capacity, v.status]
     );
+    await audit(req, 'vehicle_create', 'vehicle', row!.id, `${plate} ${v.brand} ${v.model}`);
     return { ok: true, id: row!.id };
   });
 
   app.post('/vehicle_delete', async (req) => {
-    await query('DELETE FROM vehicles WHERE id = $1', [Number((req.body as any)?.id ?? 0)]);
+    const id = Number((req.body as any)?.id ?? 0);
+    const veh = await one<any>('SELECT plate FROM vehicles WHERE id = $1', [id]);
+    await query('DELETE FROM vehicles WHERE id = $1', [id]);
+    await audit(req, 'vehicle_delete', 'vehicle', id, veh?.plate ?? `#${id}`);
     return { ok: true };
   });
 
   app.post('/assign_vehicle', async (req) => {
     const b = req.body as any;
-    await query(`UPDATE drivers SET vehicle_id = $1 WHERE user_id = $2`,
-      [Number(b?.vehicle_id) || null, Number(b?.driver_user_id ?? 0)]);
+    const driverUserId = Number(b?.driver_user_id ?? 0);
+    const vehicleId = Number(b?.vehicle_id) || null;
+    await query(`UPDATE drivers SET vehicle_id = $1 WHERE user_id = $2`, [vehicleId, driverUserId]);
+    await audit(req, 'assign_vehicle', 'vehicle', vehicleId, `conductor #${driverUserId} → vehículo ${vehicleId ?? '(ninguno)'}`);
     return { ok: true };
   });
 
@@ -366,7 +394,18 @@ export async function adminRoutes(app: FastifyInstance) {
        WHERE id = $2 AND status = 'completed'`,
       [st, id]
     );
+    await audit(req, 'trip_billing', 'trip', id, `servicio #${id} → ${st}`);
     return { ok: true };
+  });
+
+  // ---- Bitácora de auditoría (lectura) ----
+  app.get('/audit', async (req) => {
+    const limit = Math.min(500, Math.max(1, Number((req.query as any)?.limit ?? 200)));
+    const rows = await query(
+      `SELECT id, actor_id, actor_name, action, entity, entity_id, detail, created_at
+       FROM audit_log ORDER BY id DESC LIMIT $1`, [limit]
+    );
+    return { ok: true, rows };
   });
 
   // ---- Facturación: resumen por empresa (servicios completados en el período) ----

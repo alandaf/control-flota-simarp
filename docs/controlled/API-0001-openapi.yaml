@@ -45,6 +45,7 @@ paths:
     post:
       tags: [auth]
       summary: Inicio de sesión
+      description: "Con rate limiting: máximo 10 intentos por minuto por IP; al exceder responde 429."
       security: []
       requestBody:
         required: true
@@ -353,6 +354,34 @@ paths:
     post: { tags: [admin], summary: Guardar tarifas globales, responses: { '200': { description: OK } } }
   /api/admin/stats:
     get: { tags: [admin], summary: Totales rápidos, responses: { '200': { description: OK } } }
+  /api/admin/audit:
+    get:
+      tags: [admin]
+      summary: Bitácora de auditoría de acciones de administración
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 200, maximum: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        actor_id: { type: integer, nullable: true }
+                        actor_name: { type: string, nullable: true }
+                        action: { type: string }
+                        entity: { type: string, nullable: true }
+                        entity_id: { type: integer, nullable: true }
+                        detail: { type: string, nullable: true }
+                        created_at: { type: string, format: date-time }
   /api/admin/alerts:
     get:
       tags: [admin]

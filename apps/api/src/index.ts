@@ -1,12 +1,13 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import rateLimit from '@fastify/rate-limit';
 import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 
 import { env } from './env.js';
 import { waitForDb, migrate, pool } from './db.js';
-import { pubClient, subClient } from './redis.js';
+import { pubClient, subClient, redis } from './redis.js';
 import { seed } from './seed.js';
 import { loadSettings } from './tariffs.js';
 import { setIo } from './events.js';
@@ -26,6 +27,9 @@ async function main() {
 
   await app.register(cors, { origin: origins, credentials: true });
   await app.register(jwt, { secret: env.JWT_SECRET });
+  // Rate limiting: desactivado por defecto; se activa por ruta (login/registro).
+  // Usa Redis para que el límite valga entre instancias de la API.
+  await app.register(rateLimit, { global: false, redis });
 
   app.get('/health', async () => ({ ok: true, service: 'control-flota-api' }));
 

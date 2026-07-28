@@ -7,7 +7,7 @@
 | **Estado** | Aprobado |
 | **Dueño** | Ingeniería / Datos |
 | **Fecha** | 2026-07-27 |
-| **Fuente** | `apps/api/migrations/001_init.sql`, `002_business.sql`, `003_billing.sql`, `004_company_portal.sql` |
+| **Fuente** | `apps/api/migrations/001_init.sql` … `005_audit.sql` |
 
 ---
 
@@ -91,6 +91,9 @@ Tarifas globales sembradas: `fare_base=800`, `fare_per_km=550`, `fare_per_min=90
 
 ### 3.7 `companies`
 Datos de contrato + overrides de tarifa (`fare_base/per_km/per_min/minimum`, NULL = usa global), `active`.
+
+### 3.8 `audit_log`
+Bitácora de acciones de administración: `id`, `actor_id`, `actor_name` (histórico estable), `action`, `entity`, `entity_id`, `detail`, `created_at`. Índice por `created_at DESC`.
 
 ## 4. Reglas de integridad y negocio en datos
 - `role` y `status` acotados por `CHECK`.

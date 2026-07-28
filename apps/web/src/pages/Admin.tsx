@@ -4,10 +4,10 @@ import { createMap, driverMarkerIcon, SANTIAGO } from '../lib/mapkit';
 import { api, es, initials, money } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
-import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle, Building, Settings, Printer, Receipt, Bell } from '../components/Icons';
+import { Logo, LogOut, Grid, Map as MapIcon, Route, Wheel, Truck, Users as UsersIcon, Plus, Trash, Star, Clock, CheckCircle, Building, Settings, Printer, Receipt, Bell, Shield } from '../components/Icons';
 import { TrendChart, Bars, Donut } from '../components/Charts';
 
-type View = 'dashboard' | 'map' | 'alerts' | 'trips' | 'billing' | 'drivers' | 'vehicles' | 'users' | 'companies' | 'settings';
+type View = 'dashboard' | 'map' | 'alerts' | 'trips' | 'billing' | 'drivers' | 'vehicles' | 'users' | 'companies' | 'settings' | 'audit';
 
 // Formateadores
 const cl = (n: number) => Number(n || 0).toLocaleString('es-CL');
@@ -47,7 +47,7 @@ export default function Admin() {
           ['dashboard', 'Dashboard', <Grid />], ['map', 'Mapa en vivo', <MapIcon />], ['alerts', 'Alertas', <Bell />],
           ['trips', 'Reportes', <Route />], ['billing', 'Facturación', <Receipt />],
           ['drivers', 'Conductores', <Wheel />], ['vehicles', 'Vehículos', <Truck />], ['users', 'Usuarios', <UsersIcon />],
-          ['companies', 'Empresas', <Building />], ['settings', 'Tarifas', <Settings />],
+          ['companies', 'Empresas', <Building />], ['settings', 'Tarifas', <Settings />], ['audit', 'Auditoría', <Shield />],
         ] as [View, string, JSX.Element][]).map(([v, label, icon]) => (
           <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>
             {icon} {label}
@@ -67,6 +67,7 @@ export default function Admin() {
           {view === 'users' && <Users />}
           {view === 'companies' && <Companies />}
           {view === 'settings' && <SettingsTab />}
+          {view === 'audit' && <Audit />}
         </div>
       )}
     </div>
@@ -811,6 +812,46 @@ function Companies() {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+// =================== AUDITORÍA ===================
+const AUDIT_ACTION: Record<string, string> = {
+  user_create: 'Creó usuario', user_update: 'Editó usuario', user_delete: 'Eliminó usuario', user_toggle: 'Activó/desactivó usuario',
+  company_create: 'Creó empresa', company_update: 'Editó empresa', company_delete: 'Eliminó empresa',
+  vehicle_create: 'Creó vehículo', vehicle_update: 'Editó vehículo', vehicle_delete: 'Eliminó vehículo',
+  assign_vehicle: 'Asignó vehículo', settings_save: 'Guardó tarifas', trip_billing: 'Cambió facturación',
+};
+
+function Audit() {
+  const [rows, setRows] = useState<any[]>([]);
+  useEffect(() => { api<{ rows: any[] }>('/api/admin/audit').then((d) => setRows(d.rows)).catch(() => {}); }, []);
+
+  return (
+    <>
+      <div className="between mb">
+        <h3 className="row" style={{ gap: 8, alignItems: 'center', margin: 0 }}><Shield /> Bitácora de auditoría</h3>
+        <span className="muted" style={{ fontSize: 13 }}>Últimas {rows.length} acciones de administración</span>
+      </div>
+      <div className="card">
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead><tr><th>Fecha</th><th>Responsable</th><th>Acción</th><th>Detalle</th></tr></thead>
+            <tbody>
+              {rows.length === 0 ? <tr><td colSpan={4} className="muted center" style={{ padding: 24 }}>Sin registros aún.</td></tr> :
+                rows.map((r) => (
+                  <tr key={r.id}>
+                    <td className="muted">{String(r.created_at || '').slice(0, 16).replace('T', ' ')}</td>
+                    <td>{r.actor_name || '—'}</td>
+                    <td>{AUDIT_ACTION[r.action] || r.action}</td>
+                    <td className="muted">{r.detail || '—'}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </>
   );
 }

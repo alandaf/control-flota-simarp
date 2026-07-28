@@ -16,9 +16,12 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// Límite anti-fuerza-bruta para autenticación: 10 intentos por minuto por IP.
+const authLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+
 export async function authRoutes(app: FastifyInstance) {
   // ---- Registro ----
-  app.post('/register', async (req, reply) => {
+  app.post('/register', authLimit, async (req, reply) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ ok: false, error: 'Datos inválidos' });
     const { name, email, phone, password, role } = parsed.data;
@@ -43,7 +46,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // ---- Login ----
-  app.post('/login', async (req, reply) => {
+  app.post('/login', authLimit, async (req, reply) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ ok: false, error: 'Datos inválidos' });
     const { email, password } = parsed.data;

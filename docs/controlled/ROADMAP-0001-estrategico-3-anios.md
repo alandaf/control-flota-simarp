@@ -41,7 +41,7 @@ Brechas conocidas: facturación no cerrada, sin rate limiting ni log de auditor�
 |-------|--------------------|-----------|
 | **Facturación B2B** | Folio por servicio, estado pagado/pendiente, reporte por empresa/período | PRD §5.2 |
 | **Portal empresa cliente** | Login del cliente para ver sus servicios y montos | PRD §4 |
-| **Endurecimiento de seguridad** | Rate limiting en login, log de auditoría (`authGuard('admin')` y CORS ✅ ya hechos) | [SEC-0001](SEC-0001-seguridad.md) |
+| **Endurecimiento de seguridad** | ✅ **Hecho** — rate limiting en login (429) + bitácora de auditoría (`authGuard('admin')` y CORS ya estaban) | [SEC-0001](SEC-0001-seguridad.md) |
 | **Observabilidad** | Instrumentar North Star y KPIs; alertas de salud | [OPS-0001](OPS-0001-operacion-despliegue.md) |
 | **Backups y aislamiento** | Backups automáticos; plan de VPS dedicado | OPS |
 

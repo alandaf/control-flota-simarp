@@ -47,13 +47,14 @@ El asistente/operador **no** transmite secretos: al pegar salidas de comandos de
 |--------|--------|
 | Puertos expuestos | Solo `web` en `127.0.0.1:8095`; db/redis/api/osrm internos |
 | CORS | ✅ En prod acotado a `https://flota.simarp.net` (`CORS_ORIGIN`, `docker-compose.prod.yml:56`). El reflejo abierto (`*`) solo se activa manualmente para túneles de prueba |
-| Fuerza bruta login | Sin rate limiting → **agregar** (pendiente real) |
+| Fuerza bruta login | ✅ **Rate limiting** activo: `@fastify/rate-limit` en `/api/auth/login` y `/register` (10 intentos/min por IP, store en Redis → vale entre instancias). Excedido → 429 |
 | Enumeración de usuarios | Login devuelve error genérico (bien) |
 | Tokens robados | Expiran a 30 días; sin revocación → evaluar refresh/blacklist |
 
 ## 7. Auditoría y trazabilidad
-- **Actual:** marcas de tiempo del ciclo de viaje (`requested/accepted/started/completed_at`) y `updated_at` en conductores.
-- **Pendiente:** tabla `trip_events` (quién cambió qué estado y cuándo) y log de acciones de admin (crear/editar/eliminar usuarios, tarifas, empresas).
+- ✅ **Bitácora de acciones admin** (`005_audit.sql`, tabla `audit_log`): registra actor, acción, entidad y detalle de cada mutación de administración (usuarios, tarifas, empresas, vehículos, facturación). Se consulta en `GET /api/admin/audit` y en la pestaña **Auditoría** del admin.
+- Marcas de tiempo del ciclo de viaje (`requested/accepted/started/completed_at`) y `updated_at` en conductores.
+- **Pendiente:** tabla `trip_events` (historial de cada cambio de estado de viaje, más granular).
 - **Logs:** de contenedores vía Docker/Portainer (ver [OPS-0001](OPS-0001-operacion-despliegue.md)).
 
 ## 8. Privacidad
@@ -66,18 +67,20 @@ El asistente/operador **no** transmite secretos: al pegar salidas de comandos de
 |---------|---------|---------|
 | **S**poofing | Suplantar usuario | JWT firmado, bcrypt |
 | **T**ampering | Alterar viaje ajeno | Autorización por rol/propietario (reforzar en admin) |
-| **R**epudiation | Negar una acción | Marcas de tiempo; **falta** log de auditoría |
+| **R**epudiation | Negar una acción | ✅ Bitácora `audit_log` de acciones admin + marcas de tiempo |
 | **I**nfo disclosure | Fuga de datos/secretos | HTTPS, secretos fuera del repo, superficie mínima |
-| **D**enial of service | Flood a login/ruteo | **Falta** rate limiting; caché de ruteo ayuda |
+| **D**enial of service | Flood a login/ruteo | ✅ Rate limiting en auth (429); caché de ruteo ayuda |
 | **E**levation | No-admin usa admin | ✅ Mitigado: `authGuard('admin')` a nivel de plugin (§3) |
 
 ## 10. Checklist de endurecimiento (H1)
 - [x] `authGuard('admin')` en todo `/api/admin` — ✅ ya implementado (hook de plugin).
 - [x] CORS restringido al dominio de producción — ✅ ya configurado en prod.
-- [ ] Rate limiting en `/api/auth/*` (pendiente real).
-- [ ] Log de auditoría de acciones admin + `trip_events` (pendiente real).
+- [x] Rate limiting en `/api/auth/*` — ✅ implementado (`@fastify/rate-limit`, 10/min, Redis).
+- [x] Log de auditoría de acciones admin — ✅ implementado (`audit_log` + pestaña Auditoría).
+- [ ] `trip_events` (historial granular de estados de viaje).
 - [ ] Política de retención de ubicaciones.
 - [ ] Procedimiento documentado de rotación de `JWT_SECRET` y claves.
+- [ ] Que el seed **no** cree cuentas con clave conocida en producción (o forzar cambio al primer login).
 - [ ] Revisión de dependencias (`npm audit`) en CI.
 
 ## 11. Respuesta a incidentes
