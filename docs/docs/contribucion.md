@@ -40,12 +40,17 @@ Levanta `db`, `redis`, `api`, `web` (y `osrm` si el perfil está activo). Las mi
 ## Verificar antes de subir
 
 ```bash
+# Tests de la API (vitest)
+cd apps/api && npm test
+
 # Compilar la web como lo hace producción (valida TypeScript)
 docker build -f apps/web/Dockerfile -t flota-web-check apps/web
 
 # Compilar la API
 docker build -f apps/api/Dockerfile -t flota-api-check apps/api
 ```
+
+Además, **CI** (GitHub Actions, `.github/workflows/ci.yml`) corre tests + build de api/web y lint del OpenAPI en cada push/PR a `main`.
 
 ## Commits y deploy
 

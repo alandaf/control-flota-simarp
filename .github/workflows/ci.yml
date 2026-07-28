@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api:
+    name: API — tests y build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependencias
+        run: npm install
+      - name: Tests (vitest)
+        run: npm test
+      - name: Build (tsc)
+        run: npm run build
+
+  web:
+    name: Web — build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependencias
+        run: npm install
+      - name: Build (tsc + vite)
+        run: npm run build
+
+  openapi:
+    name: OpenAPI — lint del contrato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Lint del contrato OpenAPI
+        # Informativo: no bloquea el merge mientras se estabilizan los esquemas admin.
+        continue-on-error: true
+        run: npx --yes @redocly/cli@latest lint docs/controlled/API-0001-openapi.yaml

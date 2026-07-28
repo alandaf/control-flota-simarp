@@ -57,6 +57,13 @@ Variables de entorno: Portainer → stack → Environment. Ver `.env.prod.exampl
 - **Actual:** logs por contenedor (`docker logs`, Portainer), healthchecks de db/redis.
 - **Pendiente:** métricas de negocio instrumentadas, alertas de caída/uso, monitoreo de costo de Google. Ver [ROADMAP-0001 H1](ROADMAP-0001-estrategico-3-anios.md).
 
+## 6.1 Integración continua (CI)
+- **GitHub Actions** (`.github/workflows/ci.yml`) corre en cada push/PR a `main`:
+  - **api:** `npm install` → `npm test` (vitest) → `npm run build` (tsc).
+  - **web:** `npm install` → `npm run build` (tsc + vite).
+  - **openapi:** lint del contrato con `@redocly/cli` (informativo).
+- **Tests:** `apps/api/src/*.test.ts` (vitest). Cubren la lógica pura crítica: cálculo de tarifa (`fare.ts`) y ruteo (`decodePolyline`, `googleManeuver`). Correr local: `cd apps/api && npm test`.
+
 ## 7. SLO objetivo (propuesto)
 | Indicador | Objetivo |
 |-----------|----------|

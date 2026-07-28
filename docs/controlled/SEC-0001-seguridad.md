@@ -80,7 +80,8 @@ El asistente/operador **no** transmite secretos: al pegar salidas de comandos de
 - [ ] `trip_events` (historial granular de estados de viaje).
 - [ ] Política de retención de ubicaciones.
 - [ ] Procedimiento documentado de rotación de `JWT_SECRET` y claves.
-- [ ] Que el seed **no** cree cuentas con clave conocida en producción (o forzar cambio al primer login).
+- [x] Que el seed **no** cree cuentas con clave conocida en producción — ✅ hecho: en prod el admin usa `SEED_ADMIN_PASSWORD` (o clave aleatoria impresa una vez); sin cuentas demo.
+- [ ] Deshabilitar/borrar las cuentas demo (`pasajero@`, `conductor@`, `marta@`) que quedaron de un seed anterior en producción.
 - [ ] Revisión de dependencias (`npm audit`) en CI.
 
 ## 11. Respuesta a incidentes

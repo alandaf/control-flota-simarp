@@ -88,7 +88,7 @@ async function tryOsrm(oLat: number, oLng: number, dLat: number, dLng: number, w
 // =====================================================================
 // Google Directions (datos propios de Google)
 // =====================================================================
-function decodePolyline(str: string): [number, number][] {
+export function decodePolyline(str: string): [number, number][] {
   let index = 0, lat = 0, lng = 0; const coords: [number, number][] = [];
   while (index < str.length) {
     let b, shift = 0, result = 0;
@@ -101,7 +101,7 @@ function decodePolyline(str: string): [number, number][] {
   }
   return coords;
 }
-function googleManeuver(m: string): { type: string; modifier: string } {
+export function googleManeuver(m: string): { type: string; modifier: string } {
   if (!m) return { type: 'turn', modifier: 'straight' };
   if (m.includes('roundabout') || m.includes('rotary')) return { type: 'roundabout', modifier: '' };
   let modifier = 'straight';

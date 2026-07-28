@@ -109,7 +109,10 @@
       "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('ok:',d.get\\('ok'\\),'| token?',bool\\(d.get\\('token'\\)\\),'| error:',d.get\\('error'\\)\\)\")",
       "Bash(curl -s https://flota.simarp.net/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@flota.cl\",\"password\":\"123456\"}' -w '\\\\nHTTP:%{http_code}\\\\n')",
       "Bash(python -c \"import json;p=json.load\\(open\\('apps/api/package.json'\\)\\);print\\('deps:',list\\(p['dependencies']\\)\\);print\\('scripts:',p.get\\('scripts'\\)\\)\")",
-      "Bash(grep -n \"3.7\\\\|companies\\\\`\\\\|Datos de contrato\" docs/controlled/DB-0001-modelo-datos.md)"
+      "Bash(grep -n \"3.7\\\\|companies\\\\`\\\\|Datos de contrato\" docs/controlled/DB-0001-modelo-datos.md)",
+      "Bash(docker build *)",
+      "Bash(grep -iE \"error|TS[0-9]{3,4}|DONE 1[0-9]|naming|added [0-9]+ pack\")",
+      "Bash(docker run *)"
     ]
   }
 }

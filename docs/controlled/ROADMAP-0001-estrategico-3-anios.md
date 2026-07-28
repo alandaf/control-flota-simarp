@@ -32,7 +32,7 @@ Usamos el modelo de 3 horizontes:
 
 ✅ Producto en producción con 3 roles, ruteo real intercambiable, tiempo real, navegación con recálculo y voz, dashboard de negocio, tarifas y empresas, PWA. Ver [PRD-0001](PRD-0001-product-requirements.md).
 
-Brechas conocidas: facturación no cerrada, sin rate limiting ni log de auditoría, sin instrumentación de métricas, backups no automatizados, VPS compartido.
+Brechas conocidas (actualizado): facturación ✅, rate limiting + auditoría ✅, tests + CI ✅. Pendientes: instrumentación de métricas de negocio, backups automatizados, VPS compartido.
 
 ## 4. Horizonte 1 — Consolidar (2026 H2 – 2027 H1)
 
