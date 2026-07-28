@@ -61,7 +61,7 @@ Ofrecer la experiencia moderna que los pasajeros ya conocen (mapa, ETA, seguimie
 | **Paula, pasajera** | `passenger` | Llegar puntual, saber cuándo llega su auto | Incertidumbre, llamadas |
 | **Diego, conductor** | `driver` | Recibir viajes y navegar sin apps externas | Coordinación manual, navegación aparte |
 | **Andrés, administrador** | `admin` | Controlar flota, tarifas y facturar | Planillas, falta de datos |
-| **Empresa cliente** | (facturación) | Servicio medible y reportes | Opacidad del servicio |
+| **Empresa cliente** | `company` | Ver sus servicios y montos (portal de autoservicio, solo lectura) | Opacidad del servicio |
 
 ## 5. Alcance
 

@@ -7,7 +7,7 @@
 | **Estado** | Aprobado |
 | **Dueño** | Ingeniería / Datos |
 | **Fecha** | 2026-07-27 |
-| **Fuente** | `apps/api/migrations/001_init.sql`, `002_business.sql`, `003_billing.sql` |
+| **Fuente** | `apps/api/migrations/001_init.sql`, `002_business.sql`, `003_billing.sql`, `004_company_portal.sql` |
 
 ---
 
@@ -114,7 +114,7 @@ Ver [OPS-0001 §Backups](OPS-0001-operacion-despliegue.md). Nunca borrar el volu
 ## 8. Diccionario de estados
 | Entidad | Campo | Valores |
 |---------|-------|---------|
-| users | role | passenger, driver, admin |
+| users | role | passenger, driver, admin, company |
 | users | status | active, inactive |
 | vehicles | status | available, in_use, maintenance |
 | drivers | status | offline, available, busy |

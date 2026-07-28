@@ -117,7 +117,7 @@ Se recibió una propuesta externa (`docs/FLOTA_Product_Roadmap_v1.0.md`, ahora m
 3. **Alertas (Fase 2) es quick win**: el *desvío de ruta* ya se detecta en el cliente ([ADR-0003](../adr/0003-navegacion-por-proyeccion-sobre-ruta.md)); solo falta propagarlo al panel del admin.
 
 ### Orden ejecutable (mapeado a horizontes de este documento)
-- **H1:** Facturación B2B (folio + estado pagado/pendiente + reporte por empresa) = Fase 3 "Clientes" + Fase 8 "Portal Facturación". ✅ **Núcleo implementado** (`003_billing.sql`, pestaña "Facturación" en el admin). Falta el **portal de autoservicio del cliente**.
+- **H1:** Facturación B2B (folio + estado pagado/pendiente + reporte por empresa) = Fase 3 "Clientes" + Fase 8 "Portal Facturación". ✅ **Implementado** (`003_billing.sql` + pestaña "Facturación" admin) **incluido el portal de autoservicio del cliente** (rol `company`, `004_company_portal.sql`, `/api/company/*`, página `/company` solo lectura).
 - **H1 siguiente:** Panel de alertas (Fase 2).
 - **H1/H2:** Decisión y diseño de multi-tenant (Fase 5) si el negocio vende a varias operadoras.
 - **H2+:** Mantenimiento y documentación vehicular (Fase 3) → habilita costos/BI (Fase 6).

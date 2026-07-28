@@ -6,7 +6,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: 'passenger' | 'driver' | 'admin';
+  role: 'passenger' | 'driver' | 'admin' | 'company';
 }
 
 interface AuthCtx {

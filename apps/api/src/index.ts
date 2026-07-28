@@ -14,6 +14,7 @@ import { setupSockets } from './sockets.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { tripRoutes } from './routes/trips.routes.js';
 import { adminRoutes } from './routes/admin.routes.js';
+import { companyRoutes } from './routes/company.routes.js';
 import { geoRoutes } from './routes/geo.routes.js';
 
 const originList = env.CORS_ORIGIN.split(',').map((s) => s.trim());
@@ -31,6 +32,7 @@ async function main() {
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(tripRoutes, { prefix: '/api/trips' });
   await app.register(adminRoutes, { prefix: '/api/admin' });
+  await app.register(companyRoutes, { prefix: '/api/company' });
   await app.register(geoRoutes, { prefix: '/api/geo' });
 
   // Preparar base de datos

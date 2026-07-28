@@ -5,7 +5,7 @@ export interface AuthUser {
   id: number;
   name: string;
   email: string;
-  role: 'passenger' | 'driver' | 'admin';
+  role: 'passenger' | 'driver' | 'admin' | 'company';
 }
 
 export function hashPassword(plain: string): Promise<string> {

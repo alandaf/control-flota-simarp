@@ -44,6 +44,15 @@ Referencia de la API HTTP y del contrato de tiempo real. Base en producción: `h
 | GET | `/search` | sesión | `q`, `viewbox?` | Autocompletado de direcciones (Photon). `viewbox` sesga a la zona del mapa |
 | GET | `/reverse` | sesión | `lat`, `lng` | Coordenada → dirección legible |
 
+## `/api/company` (portal de empresa cliente, rol `company`)
+
+| Método | Ruta | Auth | Query | Descripción |
+|--------|------|------|-------|-------------|
+| GET | `/summary` | company | `from?`, `to?` | Totales de facturación de SU empresa (servicios, total, pagado, pendiente) |
+| GET | `/trips` | company | `from?`, `to?` | Lista de servicios facturados a SU empresa (solo lectura) |
+
+> El `company_id` se resuelve desde el usuario en el servidor; un usuario `company` nunca ve datos de otra empresa.
+
 ## `/api/admin`
 
 > Todas devuelven `{ ok: true, ... }`. Ver nota de autorización en [08 · Security](../08-security/README.md).

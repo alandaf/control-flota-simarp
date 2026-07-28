@@ -19,6 +19,8 @@ tags:
   - name: trips
   - name: geo
   - name: admin
+  - name: company
+    description: Portal de autoservicio de la empresa cliente (rol 'company', solo lectura)
 
 security:
   - bearerAuth: []
@@ -214,6 +216,50 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TripResult' } } } }
 
+  /api/company/summary:
+    get:
+      tags: [company]
+      summary: Resumen de facturación de la empresa del usuario
+      description: Requiere rol 'company'. Devuelve totales de los servicios completados de SU empresa.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  company: { type: string, nullable: true }
+                  totals:
+                    type: object
+                    properties:
+                      services: { type: integer }
+                      total: { type: integer }
+                      paid: { type: integer }
+                      pending: { type: integer }
+  /api/company/trips:
+    get:
+      tags: [company]
+      summary: Servicios de la empresa del usuario
+      description: Requiere rol 'company'. Lista solo los viajes facturados a SU empresa.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  trips: { type: array, items: { $ref: '#/components/schemas/Trip' } }
+
   /api/geo/search:
     get:
       tags: [geo]
@@ -398,7 +444,7 @@ components:
         id: { type: integer }
         name: { type: string }
         email: { type: string }
-        role: { type: string, enum: [passenger, driver, admin] }
+        role: { type: string, enum: [passenger, driver, admin, company] }
     RoutePoints:
       type: object
       required: [origin_lat, origin_lng, dest_lat, dest_lng]

@@ -148,7 +148,7 @@ export async function adminRoutes(app: FastifyInstance) {
     name: z.string().min(2),
     email: z.string().email(),
     phone: z.string().optional().default(''),
-    role: z.enum(['passenger', 'driver', 'admin']),
+    role: z.enum(['passenger', 'driver', 'admin', 'company']),
     status: z.enum(['active', 'inactive']).optional().default('active'),
     password: z.string().optional().default(''),
     company_id: z.number().nullable().optional(),
@@ -163,8 +163,10 @@ export async function adminRoutes(app: FastifyInstance) {
     const dup = await one('SELECT id FROM users WHERE email = $1 AND id <> $2', [email, u.id]);
     if (dup) return reply.code(409).send({ ok: false, error: 'Ese email ya está en uso' });
 
-    // Empresa solo aplica a pasajeros
-    const companyId = u.role === 'passenger' ? (u.company_id ?? null) : null;
+    // Empresa aplica a pasajeros (opcional) y a usuarios de portal 'company' (obligatoria)
+    const companyId = (u.role === 'passenger' || u.role === 'company') ? (u.company_id ?? null) : null;
+    if (u.role === 'company' && !companyId)
+      return reply.code(400).send({ ok: false, error: 'Un usuario de empresa debe tener una empresa asignada' });
     let userId = u.id;
     if (u.id > 0) {
       // Editar

@@ -562,7 +562,7 @@ function Vehicles() {
 }
 
 const emptyUser = { id: 0, name: '', email: '', phone: '', role: 'passenger', status: 'active', password: '' };
-const ROLE_ES: Record<string, string> = { passenger: 'Pasajero', driver: 'Conductor', admin: 'Administrador' };
+const ROLE_ES: Record<string, string> = { passenger: 'Pasajero', driver: 'Conductor', admin: 'Administrador', company: 'Empresa (portal)' };
 
 function Users() {
   const { user: me } = useAuth();
@@ -585,7 +585,7 @@ function Users() {
       await api('/api/admin/user_save', {
         id: Number(edit.id) || 0, name: edit.name.trim(), email: edit.email.trim(),
         phone: edit.phone || '', role: edit.role, status: edit.status, password: edit.password || '',
-        company_id: edit.role === 'passenger' && edit.company_id ? Number(edit.company_id) : null,
+        company_id: (edit.role === 'passenger' || edit.role === 'company') && edit.company_id ? Number(edit.company_id) : null,
       });
       setEdit(null); load();
     } catch (e: any) { alert(e.message); }
@@ -601,7 +601,7 @@ function Users() {
     <>
       <div className="between mb">
         <div className="row" style={{ gap: 6 }}>
-          {['', 'passenger', 'driver', 'admin'].map((r) => (
+          {['', 'passenger', 'driver', 'company', 'admin'].map((r) => (
             <button key={r} className={`chiptab ${filter === r ? 'active' : ''}`} onClick={() => setFilter(r)}>
               {r === '' ? 'Todos' : ROLE_ES[r]}
             </button>
@@ -620,7 +620,7 @@ function Users() {
                 <tr key={u.id}>
                   <td><b>{u.name}</b><br /><span className="muted">{u.phone || ''}</span></td>
                   <td className="muted">{u.email}</td>
-                  <td><span className={`badge ${u.role === 'driver' ? 'busy' : u.role === 'admin' ? 'in_progress' : 'completed'}`}>{ROLE_ES[u.role]}</span></td>
+                  <td><span className={`badge ${u.role === 'driver' ? 'busy' : u.role === 'admin' ? 'in_progress' : u.role === 'company' ? 'accepted' : 'completed'}`}>{ROLE_ES[u.role]}</span></td>
                   <td className="muted">{u.company_name || '—'}</td>
                   <td><span className={`badge ${u.status}`}>{es(u.status)}</span></td>
                   <td>
@@ -651,17 +651,19 @@ function Users() {
                 <select value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value })}>
                   <option value="passenger">Pasajero</option>
                   <option value="driver">Conductor</option>
+                  <option value="company">Empresa (portal)</option>
                   <option value="admin">Administrador</option>
                 </select>
               </div>
             </div>
-            {edit.role === 'passenger' && (
+            {(edit.role === 'passenger' || edit.role === 'company') && (
               <>
-                <label>Empresa cliente <span className="muted">(opcional)</span></label>
+                <label>Empresa cliente {edit.role === 'company' ? <span className="muted">(obligatoria)</span> : <span className="muted">(opcional)</span>}</label>
                 <select value={edit.company_id || ''} onChange={(e) => setEdit({ ...edit, company_id: e.target.value })}>
-                  <option value="">Sin empresa (particular)</option>
+                  <option value="">{edit.role === 'company' ? 'Selecciona una empresa…' : 'Sin empresa (particular)'}</option>
                   {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+                {edit.role === 'company' && <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>Este usuario podrá ver, en modo lectura, los servicios facturados a esta empresa.</p>}
               </>
             )}
             <label>Estado</label>

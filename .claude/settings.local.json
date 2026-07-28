@@ -92,7 +92,11 @@
       "Bash(pip install *)",
       "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\('docs/controlled/API-0001-openapi.yaml',encoding='utf-8'\\)\\); print\\('OpenAPI YAML OK — paths:', len\\(d['paths']\\), '| esquemas:', len\\(d['components']['schemas']\\)\\)\")",
       "Bash(docker rmi *)",
-      "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\('docs/controlled/API-0001-openapi.yaml',encoding='utf-8'\\)\\); print\\('OpenAPI OK — paths:', len\\(d['paths']\\)\\)\")"
+      "Bash(python -c \"import yaml; d=yaml.safe_load\\(open\\('docs/controlled/API-0001-openapi.yaml',encoding='utf-8'\\)\\); print\\('OpenAPI OK — paths:', len\\(d['paths']\\)\\)\")",
+      "Bash(docker exec -i flota_db psql -U flota -d control_flota -c ' *)",
+      "Bash(grep -n \"Admin.tsx\\\\`\" docs/controlled/PRD-0001-product-requirements.md)",
+      "Bash(grep -n \"| \\\\`admin\\\\` |\" docs/01-product/README.md)",
+      "Bash(grep -n \"## \\\\`/api/admin\\\\`\\\\|## \\\\`/api/geo\\\\`\" docs/06-api/README.md)"
     ]
   }
 }

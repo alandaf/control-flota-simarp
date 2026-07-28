@@ -20,7 +20,8 @@ Modelo de seguridad de FLOTA: autenticación, autorización, protección de dato
 
 ## 3. Autorización (RBAC)
 - `authGuard(role?)` como `preHandler` (`apps/api/src/auth.ts`).
-- Roles: `passenger`, `driver`, `admin`.
+- Roles: `passenger`, `driver`, `admin`, `company` (portal de empresa, solo lectura).
+- **`/api/company`:** todo el grupo protegido con `authGuard('company')` (hook de plugin); cada endpoint resuelve el `company_id` del usuario y filtra por él, de modo que un usuario de empresa solo ve los datos de SU empresa.
 - En sockets, cada handler verifica el rol antes de actuar.
 - **`/api/trips`:** guardas por rol en cada endpoint (`authGuard('passenger')` / `authGuard('driver')`).
 - **`/api/admin`:** ✅ **todo el grupo** está protegido con `authGuard('admin')` mediante un hook a nivel de plugin (`apps/api/src/routes/admin.routes.ts:9`: `app.addHook('preHandler', authGuard('admin'))`), aplicado al registrarse con prefijo `/api/admin` (`index.ts:33`). En Fastify el hook queda encapsulado al scope del plugin, por lo que cubre cada ruta admin, presente y futura.

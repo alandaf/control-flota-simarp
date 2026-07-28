@@ -8,7 +8,8 @@ El rol vive en `users.role` y se refuerza en el backend con `authGuard(role)` (`
 |-----|-------|----------|
 | `passenger` | Pedir viaje, ver conductor en vivo, cancelar, calificar, ver historial | `apps/web/src/pages/Passenger.tsx` |
 | `driver` | Ver solicitudes, aceptar, navegar, cambiar estado, calificar | `apps/web/src/pages/Driver.tsx` |
-| `admin` | CRUD de usuarios/vehículos/empresas, tarifas, mapa en vivo, dashboard y reportes | `apps/web/src/pages/Admin.tsx` |
+| `admin` | CRUD de usuarios/vehículos/empresas, tarifas, mapa en vivo, dashboard, reportes y facturación | `apps/web/src/pages/Admin.tsx` |
+| `company` | Portal de autoservicio: ver (solo lectura) los servicios y montos facturados a su empresa | `apps/web/src/pages/Company.tsx` |
 
 ## Ciclo de vida de un viaje
 
