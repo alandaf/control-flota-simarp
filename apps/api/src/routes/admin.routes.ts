@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { one, query } from '../db.js';
 import { authGuard, hashPassword, type AuthUser } from '../auth.js';
 import { allSettings, loadSettings } from '../tariffs.js';
+import { redis, NAV_OFFROUTE } from '../redis.js';
 
 export async function adminRoutes(app: FastifyInstance) {
   // Todas las rutas requieren rol admin
@@ -455,6 +456,22 @@ export async function adminRoutes(app: FastifyInstance) {
       id: `long-${t.id}`, type: 'long', severity: 'info',
       title: 'Viaje prolongado', detail: `Servicio #${t.id}${t.driver ? ` · ${t.driver}` : ''} en curso hace ${humanSecs(t.secs)}`,
     });
+
+    // 5) Desvío de ruta: eventos recientes reportados por el navegador del conductor (Redis, TTL 90 s)
+    const OFFROUTE_TTL = 90_000;
+    try {
+      await redis.zremrangebyscore(NAV_OFFROUTE, 0, Date.now() - OFFROUTE_TTL);
+      const off = await redis.zrange(NAV_OFFROUTE, 0, -1, 'WITHSCORES');
+      for (let i = 0; i < off.length; i += 2) {
+        const [driverId, tripId, name] = off[i].split('|');
+        const secs = Math.round((Date.now() - Number(off[i + 1])) / 1000);
+        alerts.push({
+          id: `offroute-${driverId}`, type: 'offroute', severity: 'warn',
+          title: 'Desvío de ruta',
+          detail: `${name || 'Conductor'} se desvió de la ruta hace ${humanSecs(secs)}${tripId && tripId !== '0' ? ` · servicio #${tripId}` : ''}`,
+        });
+      }
+    } catch { /* si Redis no responde, omitimos esta alerta */ }
 
     const rank: Record<string, number> = { danger: 0, warn: 1, info: 2 };
     alerts.sort((a, b) => rank[a.severity] - rank[b.severity]);

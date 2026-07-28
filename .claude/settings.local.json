@@ -96,7 +96,9 @@
       "Bash(docker exec -i flota_db psql -U flota -d control_flota -c ' *)",
       "Bash(grep -n \"Admin.tsx\\\\`\" docs/controlled/PRD-0001-product-requirements.md)",
       "Bash(grep -n \"| \\\\`admin\\\\` |\" docs/01-product/README.md)",
-      "Bash(grep -n \"## \\\\`/api/admin\\\\`\\\\|## \\\\`/api/geo\\\\`\" docs/06-api/README.md)"
+      "Bash(grep -n \"## \\\\`/api/admin\\\\`\\\\|## \\\\`/api/geo\\\\`\" docs/06-api/README.md)",
+      "Bash(curl -s http://localhost:8080/api/../health)",
+      "Bash(curl -s http://localhost:8080/health)"
     ]
   }
 }

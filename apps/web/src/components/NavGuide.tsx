@@ -7,6 +7,7 @@ interface Props {
   target: { lat: number; lng: number } | null; // destino del tramo actual
   legKey: string;                                // cambia al cambiar de tramo (recogida/viaje)
   getPos: () => { lat: number; lng: number } | null;
+  onOffRoute?: () => void;                       // se llama al detectar un desvío (para avisar al panel)
 }
 
 // ---- Geometría local (metros) ----
@@ -43,7 +44,8 @@ interface RouteModel {
   total: number;
 }
 
-export default function NavGuide({ target, legKey, getPos }: Props) {
+export default function NavGuide({ target, legKey, getPos, onOffRoute }: Props) {
+  const offRouteRef = useRef(onOffRoute); offRouteRef.current = onOffRoute;
   const [steps, setSteps] = useState<Step[]>([]);
   const [idx, setIdx] = useState(0);
   const [distM, setDistM] = useState(0);
@@ -150,7 +152,10 @@ export default function NavGuide({ target, legKey, getPos }: Props) {
       // Recalcular si me salí de la ruta (distancia perpendicular real)
       if (cross > 45) {
         offCount.current++;
-        if (offCount.current >= 2 && Date.now() - recalcAt.current > 6000) fetchSteps();
+        if (offCount.current >= 2 && Date.now() - recalcAt.current > 6000) {
+          offRouteRef.current?.(); // avisa al panel del desvío
+          fetchSteps();
+        }
       } else {
         offCount.current = 0;
       }

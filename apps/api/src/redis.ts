@@ -8,3 +8,6 @@ export const subClient = pubClient.duplicate();
 
 // Clave del set geoespacial de conductores en vivo (Redis GEO)
 export const DRIVERS_GEO = 'drivers:geo';
+
+// Sorted set de desvíos de ruta recientes (score = timestamp ms; auto-expira por TTL)
+export const NAV_OFFROUTE = 'nav:offroute';

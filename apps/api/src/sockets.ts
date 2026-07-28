@@ -1,7 +1,7 @@
 import { Server } from 'socket.io';
 import type { FastifyInstance } from 'fastify';
 import { query } from './db.js';
-import { redis, DRIVERS_GEO } from './redis.js';
+import { redis, DRIVERS_GEO, NAV_OFFROUTE } from './redis.js';
 import { room } from './events.js';
 import type { AuthUser } from './auth.js';
 
@@ -69,6 +69,15 @@ export function setupSockets(io: Server, app: FastifyInstance): void {
       socket.to(room.admins).emit('admin:driver_location', {
         user_id: user.id, lat: p.lat, lng: p.lng, status: 'busy',
       });
+    });
+
+    // ---- El conductor se desvió de la ruta (detectado en el navegador) ----
+    socket.on('driver:offroute', async (p: { trip_id?: number }) => {
+      if (user.role !== 'driver') return;
+      // Guarda el evento con marca de tiempo; el panel lo lee con TTL (auto-expira)
+      const member = `${user.id}|${p?.trip_id ?? 0}|${user.name}`;
+      await redis.zadd(NAV_OFFROUTE, Date.now(), member).catch(() => {});
+      socket.to(room.admins).emit('admin:refresh', { reason: 'offroute' });
     });
 
     // ---- Unirse a la sala de un viaje (pasajero y conductor) ----

@@ -118,7 +118,7 @@ Se recibió una propuesta externa (`docs/FLOTA_Product_Roadmap_v1.0.md`, ahora m
 
 ### Orden ejecutable (mapeado a horizontes de este documento)
 - **H1:** Facturación B2B (folio + estado pagado/pendiente + reporte por empresa) = Fase 3 "Clientes" + Fase 8 "Portal Facturación". ✅ **Implementado** (`003_billing.sql` + pestaña "Facturación" admin) **incluido el portal de autoservicio del cliente** (rol `company`, `004_company_portal.sql`, `/api/company/*`, página `/company` solo lectura).
-- **H1:** Panel de alertas (Fase 2). ✅ **Implementado** — centro de operaciones en el admin (`/api/admin/alerts` + pestaña "Alertas" con badge, polling 12 s + refresco por socket). Alertas: sin señal GPS, solicitud sin conductor, recogida demorada, viaje prolongado. Pendiente evaluar: propagar el *desvío de ruta* (ya detectado en el cliente) como alerta.
+- **H1:** Panel de alertas (Fase 2). ✅ **Implementado** — centro de operaciones en el admin (`/api/admin/alerts` + pestaña "Alertas" con badge, polling 12 s + refresco por socket). Alertas: sin señal GPS, solicitud sin conductor, recogida demorada, viaje prolongado y **desvío de ruta** (propagado desde el navegador del conductor vía socket → Redis con TTL 90 s).
 - **H1/H2:** Decisión y diseño de multi-tenant (Fase 5) si el negocio vende a varias operadoras.
 - **H2+:** Mantenimiento y documentación vehicular (Fase 3) → habilita costos/BI (Fase 6).
 - **H3:** Inteligencia/ML/gemelo digital (Fases 4/7), tras tener tracción y datos.

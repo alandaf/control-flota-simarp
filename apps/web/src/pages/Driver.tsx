@@ -203,6 +203,7 @@ export default function Driver() {
                 ? { lat: Number(trip.dest_lat), lng: Number(trip.dest_lng) }
                 : { lat: Number(trip.origin_lat), lng: Number(trip.origin_lng) }}
               getPos={() => myPos.current}
+              onOffRoute={() => getSocket().emit('driver:offroute', { trip_id: trip.id })}
             />
             {!collapsed && (
               <>

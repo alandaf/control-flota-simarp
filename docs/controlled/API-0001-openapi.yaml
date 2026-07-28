@@ -374,7 +374,7 @@ paths:
                       type: object
                       properties:
                         id: { type: string }
-                        type: { type: string, enum: [gps, unassigned, pickup, long] }
+                        type: { type: string, enum: [gps, unassigned, pickup, long, offroute] }
                         severity: { type: string, enum: [danger, warn, info] }
                         title: { type: string }
                         detail: { type: string }
