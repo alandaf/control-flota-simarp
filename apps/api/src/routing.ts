@@ -118,8 +118,11 @@ const stripHtml = (s: string) => (s || '').replace(/<[^>]+>/g, '').replace(/&nbs
 
 async function tryGoogle(oLat: number, oLng: number, dLat: number, dLng: number, withSteps: boolean): Promise<RouteResult | null> {
   if (!env.GOOGLE_MAPS_API_KEY) return null;
+  // departure_time=now -> ruteo según tráfico en vivo (evita congestión, p. ej. el centro
+  // en hora punta y prefiere La Pólvora). alternatives=true -> Google devuelve varias y
+  // elegimos la más rápida considerando el tráfico actual.
   const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${oLat},${oLng}&destination=${dLat},${dLng}` +
-    `&mode=driving&language=es&region=cl&key=${env.GOOGLE_MAPS_API_KEY}`;
+    `&mode=driving&departure_time=now&alternatives=true&traffic_model=best_guess&language=es&region=cl&key=${env.GOOGLE_MAPS_API_KEY}`;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), env.OSRM_TIMEOUT_MS);
@@ -128,9 +131,11 @@ async function tryGoogle(oLat: number, oLng: number, dLat: number, dLng: number,
     if (!res.ok) throw new Error(`google ${res.status}`);
     const data: any = await res.json();
     if (data?.status !== 'OK') throw new Error(`google ${data?.status}`);
-    const route = data.routes[0];
+    // Duración con tráfico (cae a la nominal si Google no la trae)
+    const trafficSecs = (r: any) => (r.legs ?? []).reduce((s: number, l: any) => s + (l.duration_in_traffic?.value ?? l.duration.value), 0);
+    const route = (data.routes as any[]).reduce((best, r) => (trafficSecs(r) < trafficSecs(best) ? r : best), data.routes[0]);
     let dist = 0, dur = 0;
-    for (const leg of route.legs) { dist += leg.distance.value; dur += leg.duration.value; }
+    for (const leg of route.legs) { dist += leg.distance.value; dur += (leg.duration_in_traffic?.value ?? leg.duration.value); }
     const geometry = decodePolyline(route.overview_polyline.points);
     const result: RouteResult = { distanceKm: +(dist / 1000).toFixed(2), durationMin: Math.max(1, Math.round(dur / 60)), geometry, source: 'google' };
     if (withSteps) {

@@ -110,10 +110,11 @@ export default function Driver() {
     } catch (e: any) { alert(e.message); }
   }
 
-  // Dibuja la ruta según la fase:
+  // Dibuja la ruta según la fase, SIEMPRE desde la posición actual del conductor:
   //  - antes de recoger (accepted/arrived): CONDUCTOR → punto de recogida (origen)
-  //  - en viaje (in_progress): origen → destino
-  // Recalcula la ruta de recogida cada ~15s mientras el conductor se acerca.
+  //  - en viaje (in_progress): CONDUCTOR → destino
+  // Se recalcula cada ~15s (y con tráfico en vivo desde el backend), así la ruta
+  // sigue al conductor y se reajusta si toma otro camino.
   async function ensureRoute(t: any) {
     const m = map.current!;
     const origin = { lat: Number(t.origin_lat), lng: Number(t.origin_lng) };
@@ -134,11 +135,11 @@ export default function Driver() {
       m.fitBounds(L.latLngBounds(fitPts as any), { padding: [70, 70] });
     }
 
-    // Ruta de recogida: refrescar cada 15s (el conductor se mueve)
-    const stale = pickup && Date.now() - lastRouteAt.current > 15000;
+    // Refrescar cada 15s en cualquier fase (el conductor se mueve → la ruta lo sigue)
+    const stale = Date.now() - lastRouteAt.current > 15000;
     if (routeKey.current === key && !stale) return;
 
-    const from = pickup ? (myPos.current ?? origin) : origin;
+    const from = myPos.current ?? origin;
     const to = pickup ? origin : dest;
     const color = pickup ? '#10b981' : '#4f46e5';
 

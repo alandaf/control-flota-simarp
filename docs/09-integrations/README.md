@@ -26,6 +26,7 @@ Resultado normalizado `RouteResult`:
 ### Google Directions (producción)
 - Adaptador `tryGoogle()`: decodifica *polyline*, mapea maniobras a `{type,modifier}` y limpia el HTML de las instrucciones.
 - Requiere `GOOGLE_MAPS_API_KEY` (Directions API habilitada, key restringida por IP del VPS).
+- **Traffic-aware:** la llamada usa `departure_time=now` + `alternatives=true` y elige la ruta con menor `duration_in_traffic`. Así evita congestión (p. ej. el centro de Valparaíso en hora punta) y prefiere vías rápidas como Camino La Pólvora, igual que la app de Google Maps. La duración estimada usa el tiempo con tráfico.
 - **En producción** `ROUTING_PROVIDER=google` porque da rutas más precisas en Valparaíso; si Google falla, cae automáticamente a OSRM.
 
 Por qué es intercambiable: [ADR-0002](../adr/0002-motor-de-ruteo-intercambiable.md).
