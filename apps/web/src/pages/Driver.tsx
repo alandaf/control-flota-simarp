@@ -56,7 +56,7 @@ export default function Driver() {
           lastPush.current = Date.now();
           getSocket().emit('driver:location', { lat: p.lat, lng: p.lng, heading: pos.coords.heading ?? undefined });
         }
-      }, () => {}, { enableHighAccuracy: true, maximumAge: 2000, timeout: 8000 });
+      }, () => {}, { enableHighAccuracy: true, maximumAge: 800, timeout: 8000 });
     }
     return () => { if (watchId) navigator.geolocation.clearWatch(watchId); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

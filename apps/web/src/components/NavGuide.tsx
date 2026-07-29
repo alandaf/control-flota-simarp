@@ -145,21 +145,28 @@ export default function NavGuide({ target, legKey, getPos, onOffRoute }: Props) 
       if (st.type === 'arrive') {
         if (d < 40 && spokenNow.current !== i) { spokenNow.current = i; speak('Llegaste a tu destino'); }
       } else {
-        if (d < 300 && d > 60 && spokenAt.current !== i) { spokenAt.current = i; speak(`En ${fmtDist(d)}, ${st.instruction}`); }
-        if (d < 40 && spokenNow.current !== i) { spokenNow.current = i; speak(st.instruction); }
+        // Aviso anticipado: se dispara la PRIMERA vez que la maniobra entra en
+        // rango (<350 m), sin cota inferior. Antes, a alta velocidad un salto de
+        // GPS podía "saltarse" la ventana 60–300 m y solo sonaba el aviso tardío.
+        if (d < 350 && spokenAt.current !== i) { spokenAt.current = i; speak(`En ${fmtDist(d)}, ${st.instruction}`); }
+        if (d < 45 && spokenNow.current !== i) { spokenNow.current = i; speak(st.instruction); }
       }
 
-      // Recalcular si me salí de la ruta (distancia perpendicular real)
-      if (cross > 45) {
+      // Recalcular si me salí de la ruta (distancia perpendicular real).
+      // Cerca del destino el GPS "salta" entre calles y disparaba recálculos
+      // falsos que proponían otra ruta; por eso NO recalculamos en los últimos
+      // ~300 m y exigimos más lecturas fuera de ruta (umbral 60 m, 3 lecturas).
+      const remaining = model.total - sAlong;
+      if (cross > 60 && remaining > 300) {
         offCount.current++;
-        if (offCount.current >= 2 && Date.now() - recalcAt.current > 6000) {
+        if (offCount.current >= 3 && Date.now() - recalcAt.current > 8000) {
           offRouteRef.current?.(); // avisa al panel del desvío
           fetchSteps();
         }
       } else {
         offCount.current = 0;
       }
-    }, 2000);
+    }, 1000);
     return () => clearInterval(iv);
     // eslint-disable-next-line
   }, []);
