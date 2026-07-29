@@ -223,8 +223,21 @@ export default function Driver() {
                 <div className="addr"><span className="adot d" /> <b>{trip.dest_address || 'Destino'}</b></div>
                 <div className="fare-box">
                   <div><div className="amt tnum">{money(trip.fare)}</div><div className="meta">{trip.distance_km} km</div></div>
-                  <a className="btn secondary small" target="_blank" rel="noreferrer"
-                     href={`https://www.openstreetmap.org/directions?from=${myPos.current ? myPos.current.lat + ',' + myPos.current.lng : ''}&to=${navTo}`}><Navigation /> Navegar</a>
+                </div>
+                {/* Navegación real: abre Waze o Google Maps con giro-a-giro hacia el
+                    punto actual (recogida antes de iniciar, destino durante el viaje).
+                    No pasamos origen: cada app usa el GPS del teléfono (más preciso). */}
+                <div className="row" style={{ gap: 8, marginTop: 8 }}>
+                  <a className="btn secondary small" style={{ flex: 1, justifyContent: 'center' }}
+                     target="_blank" rel="noreferrer"
+                     href={`https://www.waze.com/ul?ll=${navTo}&navigate=yes`}>
+                    <Navigation /> Waze
+                  </a>
+                  <a className="btn secondary small" style={{ flex: 1, justifyContent: 'center' }}
+                     target="_blank" rel="noreferrer"
+                     href={`https://www.google.com/maps/dir/?api=1&destination=${navTo}&travelmode=driving&dir_action=navigate`}>
+                    <Navigation /> Google Maps
+                  </a>
                 </div>
               </>
             )}
