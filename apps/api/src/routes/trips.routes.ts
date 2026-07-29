@@ -6,6 +6,7 @@ import { estimateFare } from '../fare.js';
 import { tariffForUser } from '../tariffs.js';
 import { getRoute } from '../routing.js';
 import { emitTo, room } from '../events.js';
+import { sendToUser, sendToAvailableDrivers } from '../push.js';
 import { env } from '../env.js';
 
 const point = { lat: z.number(), lng: z.number() };
@@ -104,6 +105,13 @@ export async function tripRoutes(app: FastifyInstance) {
       distance_km: km, fare, passenger_name: user.name,
     });
     emitTo(room.admins, 'admin:refresh', { reason: 'trip:new' });
+
+    // Push a conductores disponibles (aunque tengan la app cerrada)
+    sendToAvailableDrivers({
+      title: 'Nuevo viaje disponible',
+      body: `${d.origin_address || 'Origen'} → ${d.dest_address || 'destino'} · $${fare.toLocaleString('es-CL')}`,
+      url: '/driver', tag: 'trip-new',
+    }).catch(() => {});
 
     return { ok: true, trip_id: trip!.id, fare, distance_km: km };
   });
@@ -225,6 +233,14 @@ export async function tripRoutes(app: FastifyInstance) {
     await query(`UPDATE drivers SET status = 'busy' WHERE user_id = $1`, [user.id]);
     emitTo(room.user(updated.passenger_id), 'trip:update', { trip_id: tripId, status: 'accepted' });
     emitTo(room.admins, 'admin:refresh', { reason: 'trip:accept' });
+
+    // Push al pasajero: su viaje fue aceptado
+    sendToUser(updated.passenger_id, {
+      title: '¡Conductor asignado!',
+      body: `${user.name} aceptó tu viaje y va en camino.`,
+      url: '/passenger', tag: `trip-${tripId}`,
+    }).catch(() => {});
+
     return { ok: true, trip_id: tripId };
   });
 

@@ -7,6 +7,7 @@ import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
 import { useWakeLock } from '../lib/wakeLock';
 import { Logo, User, LogOut, Pin, Flag, Phone, Car, CheckCircle, Route, Star, StarOutline, Clock, Locate } from '../components/Icons';
+import NotifyBell from '../components/NotifyBell';
 import SearchBox from '../components/SearchBox';
 
 type Pt = { lat: number; lng: number; address?: string };
@@ -261,6 +262,7 @@ export default function Passenger() {
         <div className="brand"><span className="mark"><Logo /></span> Control Flota</div>
         <div className="topbar-actions">
           <span className="who"><User /> {firstName}</span>
+          <NotifyBell />
           <button className="icon-btn" onClick={logout} title="Salir"><LogOut /></button>
         </div>
       </div>

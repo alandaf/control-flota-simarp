@@ -6,6 +6,7 @@ import { getSocket } from '../lib/socket';
 import { useAuth } from '../lib/auth';
 import { useWakeLock } from '../lib/wakeLock';
 import { Wheel, LogOut, Power, Phone, Navigation, Check, Play, CheckCircle, Search, ChevronDown, ChevronUp } from '../components/Icons';
+import NotifyBell from '../components/NotifyBell';
 import NavGuide from '../components/NavGuide';
 
 export default function Driver() {
@@ -181,6 +182,7 @@ export default function Driver() {
         <div className="brand"><span className="mark"><Wheel /></span> Conductor</div>
         <div className="topbar-actions">
           <span className={`chip ${status === 'available' ? 'on' : status === 'busy' ? 'busy' : 'off'}`}>{es(status)}</span>
+          <NotifyBell />
           <button className="icon-btn" onClick={logout} title="Salir"><LogOut /></button>
         </div>
       </div>

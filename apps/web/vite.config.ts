@@ -26,6 +26,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Inyecta el manejador de notificaciones push al SW generado
+        importScripts: ['/push-sw.js'],
         // No cachear la API ni los tiles de mapa (siempre en línea)
         navigateFallbackDenylist: [/^\/api/, /^\/socket\.io/],
         runtimeCaching: [

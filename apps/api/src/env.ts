@@ -20,6 +20,10 @@ export const env = {
   // Vías a evitar en Google (coma-separado): 'highways' | 'tolls' | 'ferries'.
   // Ej. 'highways' para preferir caminos como La Pólvora en vez de la autopista.
   ROUTING_AVOID: (process.env.ROUTING_AVOID ?? '').trim(),
+  // Notificaciones push (Web Push / VAPID). Generar con: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY ?? '',
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY ?? '',
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT ?? 'mailto:contacto@simarp.net',
   OSRM_URL: process.env.OSRM_URL ?? 'https://router.project-osrm.org',
   OSRM_TIMEOUT_MS: Number(process.env.OSRM_TIMEOUT_MS ?? 6000),
   // Radio máx. (m) para encajar un punto a la red vial; fuera de eso -> sin ruta
