@@ -113,7 +113,10 @@
       "Bash(docker build *)",
       "Bash(grep -iE \"error|TS[0-9]{3,4}|DONE 1[0-9]|naming|added [0-9]+ pack\")",
       "Bash(docker run *)",
-      "Bash(gh run *)"
+      "Bash(gh run *)",
+      "Bash(curl -s \"https://photon.komoot.io/api/?q=Rep%C3%BAblica%20211%20Playa%20Ancha%20Valpara%C3%ADso&limit=2&lang=default&lat=-33.03&lon=-71.63\" -H \"User-Agent: ControlFlota/1.0\")",
+      "Bash(python -c \"import sys,json;[print\\(f['geometry']['coordinates'],'|',f['properties'].get\\('name'\\),f['properties'].get\\('street'\\),f['properties'].get\\('housenumber'\\),'|',f['properties'].get\\('district'\\) or f['properties'].get\\('city'\\)\\) for f in json.load\\(sys.stdin\\).get\\('features',[]\\)]\")",
+      "Bash(curl -s \"https://photon.komoot.io/api/?q=Paseo%20Los%20Pinos%20Curauma%20Valpara%C3%ADso&limit=2&lang=default&lat=-33.11&lon=-71.55\" -H \"User-Agent: ControlFlota/1.0\")"
     ]
   }
 }

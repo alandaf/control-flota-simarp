@@ -17,6 +17,9 @@ export const env = {
   // Motor de ruteo: 'osrm' (OpenStreetMap, gratis) o 'google' (Directions API).
   ROUTING_PROVIDER: (process.env.ROUTING_PROVIDER ?? 'osrm').toLowerCase(),
   GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? '',
+  // Vías a evitar en Google (coma-separado): 'highways' | 'tolls' | 'ferries'.
+  // Ej. 'highways' para preferir caminos como La Pólvora en vez de la autopista.
+  ROUTING_AVOID: (process.env.ROUTING_AVOID ?? '').trim(),
   OSRM_URL: process.env.OSRM_URL ?? 'https://router.project-osrm.org',
   OSRM_TIMEOUT_MS: Number(process.env.OSRM_TIMEOUT_MS ?? 6000),
   // Radio máx. (m) para encajar un punto a la red vial; fuera de eso -> sin ruta

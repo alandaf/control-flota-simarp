@@ -121,8 +121,9 @@ async function tryGoogle(oLat: number, oLng: number, dLat: number, dLng: number,
   // departure_time=now -> ruteo según tráfico en vivo (evita congestión, p. ej. el centro
   // en hora punta y prefiere La Pólvora). alternatives=true -> Google devuelve varias y
   // elegimos la más rápida considerando el tráfico actual.
+  const avoid = env.ROUTING_AVOID ? `&avoid=${encodeURIComponent(env.ROUTING_AVOID.replace(/\s*,\s*/g, '|'))}` : '';
   const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${oLat},${oLng}&destination=${dLat},${dLng}` +
-    `&mode=driving&departure_time=now&alternatives=true&traffic_model=best_guess&language=es&region=cl&key=${env.GOOGLE_MAPS_API_KEY}`;
+    `&mode=driving&departure_time=now&alternatives=true&traffic_model=best_guess${avoid}&language=es&region=cl&key=${env.GOOGLE_MAPS_API_KEY}`;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), env.OSRM_TIMEOUT_MS);
