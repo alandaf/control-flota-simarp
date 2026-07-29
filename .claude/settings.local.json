@@ -116,7 +116,10 @@
       "Bash(gh run *)",
       "Bash(curl -s \"https://photon.komoot.io/api/?q=Rep%C3%BAblica%20211%20Playa%20Ancha%20Valpara%C3%ADso&limit=2&lang=default&lat=-33.03&lon=-71.63\" -H \"User-Agent: ControlFlota/1.0\")",
       "Bash(python -c \"import sys,json;[print\\(f['geometry']['coordinates'],'|',f['properties'].get\\('name'\\),f['properties'].get\\('street'\\),f['properties'].get\\('housenumber'\\),'|',f['properties'].get\\('district'\\) or f['properties'].get\\('city'\\)\\) for f in json.load\\(sys.stdin\\).get\\('features',[]\\)]\")",
-      "Bash(curl -s \"https://photon.komoot.io/api/?q=Paseo%20Los%20Pinos%20Curauma%20Valpara%C3%ADso&limit=2&lang=default&lat=-33.11&lon=-71.55\" -H \"User-Agent: ControlFlota/1.0\")"
+      "Bash(curl -s \"https://photon.komoot.io/api/?q=Paseo%20Los%20Pinos%20Curauma%20Valpara%C3%ADso&limit=2&lang=default&lat=-33.11&lon=-71.55\" -H \"User-Agent: ControlFlota/1.0\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://flota.simarp.net/push-sw.js)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://flota.simarp.net/api/push/key)",
+      "Bash(curl -s https://flota.simarp.net/sw.js)"
     ]
   }
 }

@@ -55,6 +55,14 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: https://${DOMAIN}
       OSRM_URL: ${OSRM_URL:-http://osrm:5000}
+      # Ruteo
+      ROUTING_PROVIDER: ${ROUTING_PROVIDER:-osrm}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      ROUTING_AVOID: ${ROUTING_AVOID:-}
+      # Notificaciones push (Web Push / VAPID)
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:contacto@simarp.net}
 
   osrm:
     image: ghcr.io/project-osrm/osrm-backend:latest
