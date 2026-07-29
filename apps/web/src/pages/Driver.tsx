@@ -176,12 +176,16 @@ export default function Driver() {
     ? (trip.status === 'in_progress' ? `${trip.dest_lat},${trip.dest_lng}` : `${trip.origin_lat},${trip.origin_lng}`)
     : '';
 
+  // El chip refleja la realidad: con un viaje activo el conductor está Ocupado,
+  // aunque no haya llegado el evento de socket que cambia `status`.
+  const shown = trip ? 'busy' : status;
+
   return (
     <div className="app">
       <div className="topbar">
         <div className="brand"><span className="mark"><Wheel /></span> Conductor</div>
         <div className="topbar-actions">
-          <span className={`chip ${status === 'available' ? 'on' : status === 'busy' ? 'busy' : 'off'}`}>{es(status)}</span>
+          <span className={`chip ${shown === 'available' ? 'on' : shown === 'busy' ? 'busy' : 'off'}`}>{es(shown)}</span>
           <NotifyBell />
           <button className="icon-btn" onClick={logout} title="Salir"><LogOut /></button>
         </div>

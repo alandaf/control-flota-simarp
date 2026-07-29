@@ -107,6 +107,9 @@ export default function Passenger() {
         routeKey.current = '';
         setEta(null);
         removeCar();
+        // Limpia el trazo del viaje anterior: si no, queda pegado y la ruta
+        // del viaje siguiente no se dibuja (el fallback ve line.current != null).
+        if (line.current) { map.current?.removeLayer(line.current); line.current = null; }
       }
     } catch { /* ignore */ }
   }
