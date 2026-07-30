@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { Maneuver, Volume, VolumeOff } from './Icons';
+import { Maneuver } from './Icons';
 
 interface Step { lat: number; lng: number; instruction: string; type: string; modifier: string; distance: number; }
 interface Props {
@@ -44,40 +44,20 @@ interface RouteModel {
   total: number;
 }
 
+// Guía SOLO VISUAL: muestra en pantalla la próxima maniobra y la distancia.
+// La navegación por voz real se delega a Waze / Google Maps (botones del panel);
+// la voz interna se quitó porque seguía una ruta calculada aparte y se
+// desincronizaba a mitad de camino.
 export default function NavGuide({ target, legKey, getPos, onOffRoute }: Props) {
   const offRouteRef = useRef(onOffRoute); offRouteRef.current = onOffRoute;
   const [steps, setSteps] = useState<Step[]>([]);
   const [idx, setIdx] = useState(0);
   const [distM, setDistM] = useState(0);
-  const [voiceOn, setVoiceOn] = useState(false); // OFF por defecto (iOS exige un toque)
 
   const stepsRef = useRef<Step[]>([]); stepsRef.current = steps;
   const modelRef = useRef<RouteModel | null>(null);
-  const voiceRef = useRef(false);        // se actualiza al instante al tocar
-  const spokenAt = useRef<number>(-1);   // idx anunciado "en X metros"
-  const spokenNow = useRef<number>(-1);  // idx anunciado "ahora"
   const offCount = useRef(0);
   const recalcAt = useRef(0);            // timestamp del último recálculo (anti-rebote)
-
-  function speak(text: string) {
-    if (!voiceRef.current || !('speechSynthesis' in window)) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'es-ES'; u.rate = 1;
-    const v = window.speechSynthesis.getVoices().find((x) => x.lang?.toLowerCase().startsWith('es'));
-    if (v) u.voice = v;
-    try { window.speechSynthesis.resume(); } catch {}
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  }
-
-  // Se llama DENTRO del gesto de toque -> desbloquea la voz en iOS
-  function toggleVoice() {
-    const next = !voiceRef.current;
-    voiceRef.current = next;
-    setVoiceOn(next);
-    if (next) speak('Navegación por voz activada');
-    else window.speechSynthesis.cancel();
-  }
 
   // (Re)calcula la ruta con maniobras + geometría desde la posición actual hacia el destino
   async function fetchSteps() {
@@ -93,7 +73,7 @@ export default function NavGuide({ target, legKey, getPos, onOffRoute }: Props) 
       modelRef.current = buildModel(s, geom);
       setSteps(s);
       setIdx(s.length > 1 ? 1 : 0);
-      spokenAt.current = -1; spokenNow.current = -1; offCount.current = 0;
+      offCount.current = 0;
     } catch { /* reintenta luego */ }
   }
 
@@ -117,7 +97,7 @@ export default function NavGuide({ target, legKey, getPos, onOffRoute }: Props) 
 
   useEffect(() => { fetchSteps(); /* eslint-disable-next-line */ }, [legKey]);
 
-  // Bucle de seguimiento
+  // Bucle de seguimiento (solo actualiza la maniobra visible y detecta desvíos)
   useEffect(() => {
     const iv = setInterval(() => {
       const pos = getPos();
@@ -140,22 +120,8 @@ export default function NavGuide({ target, legKey, getPos, onOffRoute }: Props) 
       setIdx(i);
       setDistM(d);
 
-      // Anuncios por voz
-      const st = s[i];
-      if (st.type === 'arrive') {
-        if (d < 40 && spokenNow.current !== i) { spokenNow.current = i; speak('Llegaste a tu destino'); }
-      } else {
-        // Aviso anticipado: se dispara la PRIMERA vez que la maniobra entra en
-        // rango (<350 m), sin cota inferior. Antes, a alta velocidad un salto de
-        // GPS podía "saltarse" la ventana 60–300 m y solo sonaba el aviso tardío.
-        if (d < 350 && spokenAt.current !== i) { spokenAt.current = i; speak(`En ${fmtDist(d)}, ${st.instruction}`); }
-        if (d < 45 && spokenNow.current !== i) { spokenNow.current = i; speak(st.instruction); }
-      }
-
-      // Recalcular si me salí de la ruta (distancia perpendicular real).
-      // Cerca del destino el GPS "salta" entre calles y disparaba recálculos
-      // falsos que proponían otra ruta; por eso NO recalculamos en los últimos
-      // ~300 m y exigimos más lecturas fuera de ruta (umbral 60 m, 3 lecturas).
+      // Aviso de desvío al panel de operaciones (sin recalcular cerca del destino,
+      // donde el GPS "salta" entre calles y disparaba falsos positivos).
       const remaining = model.total - sAlong;
       if (cross > 60 && remaining > 300) {
         offCount.current++;
@@ -181,10 +147,6 @@ export default function NavGuide({ target, legKey, getPos, onOffRoute }: Props) 
         <div className="nav-dist">{cur.type === 'arrive' ? 'Llegando' : fmtDist(distM)}</div>
         <div className="nav-instr">{cur.instruction}</div>
       </div>
-      <button className={`nav-mute${voiceOn ? '' : ' off'}`} onClick={toggleVoice}
-              title={voiceOn ? 'Silenciar voz' : 'Activar voz'}>
-        {voiceOn ? <Volume /> : <VolumeOff />}
-      </button>
     </div>
   );
 }
