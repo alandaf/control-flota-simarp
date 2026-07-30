@@ -28,11 +28,21 @@ const carMarkerHtml = (bg: string) =>
      ${carGlyph('#fff')}
    </svg></div>`;
 
+// Marcador direccional del propio conductor: círculo + flecha que apunta al
+// rumbo. El wrapper `.mk-rot` se rota por CSS (transform) desde Driver.tsx; no
+// choca con el translate que Leaflet aplica al contenedor del marcador.
+const navArrowHtml = (bg: string) =>
+  `<div class="mk-rot" style="transform-origin:50% 50%"><svg width="40" height="40" viewBox="0 0 40 40">
+     <circle cx="20" cy="20" r="15" fill="${bg}" stroke="#fff" stroke-width="2.5"/>
+     <path d="M20 9 L27.5 27 L20 22.5 L12.5 27 Z" fill="#fff"/>
+   </svg></div>`;
+
 export const icons = {
   origin: L.divIcon({ html: originHtml, className: '', iconSize: [22, 22], iconAnchor: [11, 11] }),
   dest: L.divIcon({ html: destHtml, className: '', iconSize: [28, 34], iconAnchor: [14, 32] }),
   car: L.divIcon({ html: carMarkerHtml('#0a0a0b'), className: '', iconSize: [36, 36], iconAnchor: [18, 18] }),
   taxi: L.divIcon({ html: carMarkerHtml('#635bff'), className: '', iconSize: [36, 36], iconAnchor: [18, 18] }),
+  nav: L.divIcon({ html: navArrowHtml('#635bff'), className: '', iconSize: [40, 40], iconAnchor: [20, 20] }),
 };
 
 /** Marcador de conductor para el mapa de administración (color según estado). */

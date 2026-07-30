@@ -9,6 +9,20 @@ import { Wheel, LogOut, Power, Phone, Navigation, Check, Play, CheckCircle, Sear
 import NotifyBell from '../components/NotifyBell';
 import NavGuide from '../components/NavGuide';
 
+// Rumbo (grados, 0 = norte) entre dos coordenadas — para orientar la flecha.
+const _rad = (d: number) => (d * Math.PI) / 180;
+function bearingBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const y = Math.sin(_rad(b.lng - a.lng)) * Math.cos(_rad(b.lat));
+  const x = Math.cos(_rad(a.lat)) * Math.sin(_rad(b.lat)) -
+            Math.sin(_rad(a.lat)) * Math.cos(_rad(b.lat)) * Math.cos(_rad(b.lng - a.lng));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+// Rota el interior del marcador (.mk-rot) sin tocar el translate de Leaflet.
+function rotateMarker(marker: L.Marker | null, deg: number) {
+  const el = marker?.getElement()?.querySelector('.mk-rot') as HTMLElement | null;
+  if (el) el.style.transform = `rotate(${deg}deg)`;
+}
+
 export default function Driver() {
   const { logout } = useAuth();
   const mapDiv = useRef<HTMLDivElement>(null);
@@ -18,6 +32,8 @@ export default function Driver() {
   const dMarker = useRef<L.Marker | null>(null);
   const line = useRef<L.Polyline | null>(null);
   const myPos = useRef<{ lat: number; lng: number } | null>(null);
+  const bearing = useRef(0);                              // rumbo actual del vehículo (grados)
+  const bearingPos = useRef<{ lat: number; lng: number } | null>(null); // última posición usada para el rumbo
   const lastPush = useRef(0);
   const onlineRef = useRef(false);
   const tripRef = useRef<any>(null);
@@ -46,9 +62,21 @@ export default function Driver() {
     if (navigator.geolocation) {
       watchId = navigator.geolocation.watchPosition((pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        // Rumbo del vehículo para orientar la flecha: preferimos el heading del
+        // GPS cuando es fiable (yendo a cierta velocidad); si no, lo calculamos
+        // del desplazamiento entre posiciones. Sin brújula ni permisos.
+        const prev = bearingPos.current;
+        const moved = prev ? L.latLng(prev.lat, prev.lng).distanceTo([p.lat, p.lng]) : 0;
+        if (pos.coords.heading != null && !Number.isNaN(pos.coords.heading) && (pos.coords.speed ?? 0) > 0.7) {
+          bearing.current = pos.coords.heading;
+        } else if (prev && moved > 4) {
+          bearing.current = bearingBetween(prev, p);
+        }
+        if (!prev || moved > 4) bearingPos.current = p; // solo refrescamos con movimiento real (anti-jitter)
         myPos.current = p;
         if (meMarker.current) meMarker.current.setLatLng([p.lat, p.lng]);
-        else { meMarker.current = L.marker([p.lat, p.lng], { icon: icons.taxi }).addTo(m); m.setView([p.lat, p.lng], 15); }
+        else { meMarker.current = L.marker([p.lat, p.lng], { icon: icons.nav }).addTo(m); m.setView([p.lat, p.lng], 15); }
+        rotateMarker(meMarker.current, bearing.current);
         // Durante un viaje, el mapa sigue al conductor (modo navegación)
         if (tripRef.current) m.panTo([p.lat, p.lng], { animate: true, duration: 0.5 });
         // Enviar ubicación si está en línea O tiene un viaje activo (clave para el pasajero)
