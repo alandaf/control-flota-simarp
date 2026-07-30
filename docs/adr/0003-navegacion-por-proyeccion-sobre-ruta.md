@@ -1,7 +1,20 @@
 # ADR-0003 · Navegación por proyección sobre la ruta
 
-- **Estado:** Aceptado
+- **Estado:** Aceptado · **parcialmente superado** (2026-07-29)
 - **Fecha:** 2026-07-27
+
+> **Actualización (2026-07-29).** La **voz interna se retiró.** En calle seguía
+> quedando "fuera de lugar" a mitad de ruta porque `NavGuide` calculaba **su
+> propia ruta**, distinta a la que se dibuja y maneja (dos llamadas
+> independientes que pueden elegir alternativas distintas). Decisión: **delegar
+> la navegación por voz a Waze/Google Maps** (botones en el panel del conductor)
+> y dejar `NavGuide` como **guía solo visual**. La técnica de proyección sobre
+> la ruta (abajo) **se mantiene** para el banner visual y para la detección de
+> desvío que alimenta el panel de operaciones; solo se afinaron umbrales
+> (perpendicular **60 m** / **3 lecturas** / anti-rebote **8 s**, sin recalcular
+> en los últimos ~300 m) y el bucle bajó a **1 s**. Ver
+> [`05-mobile/README.md`](../05-mobile/README.md) y
+> [`05-mobile/guia-conductor.md`](../05-mobile/guia-conductor.md).
 
 ## Contexto
 

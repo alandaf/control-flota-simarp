@@ -22,25 +22,39 @@ No hay app nativa: **Control Flota es una PWA instalable** que se comporta como 
 - Se activa mientras haya un viaje (`useWakeLock(!!trip)`), y **re-adquiere** el lock al volver a foco (`visibilitychange`).
 - Evita que la pantalla se apague durante la navegación.
 
-## Navegación giro a giro + voz (`components/NavGuide.tsx`)
+## Navegación (`components/NavGuide.tsx` + botones Waze/Google)
 
-Componente que convierte la ruta en indicaciones:
+La **navegación real se delega a Waze o Google Maps**; la app aporta el
+despacho y una guía visual ligera. Para la guía del usuario final ver
+[guia-conductor.md](guia-conductor.md).
 
-- Pide la ruta con maniobras (`POST /api/trips/route` con `{ steps: true }`) → obtiene **geometría** + **pasos**.
-- **Seguimiento por proyección sobre la ruta** (no distancia en línea recta):
-  - **Distancia perpendicular** a la línea → si supera **45 m** de forma sostenida, **recalcula** (con anti-rebote de 6 s).
-  - **Avance a lo largo de la ruta** → determina qué maniobra sigue y su distancia real; así el banner y la voz van al día aunque el GPS derive.
-- **Voz (Web Speech API):**
-  - **OFF por defecto** — iOS exige un gesto del usuario para desbloquear `speechSynthesis`; el primer toque en 🔊 lo activa.
-  - Anuncia "En X metros, {maniobra}" al acercarse y la instrucción corta al llegar al giro.
-  - Idioma `es-ES`.
+- **Botones Waze / Google Maps** (panel del conductor, `pages/Driver.tsx`):
+  abren navegación giro-a-giro real hacia el punto de la fase actual
+  (recogida antes de "Iniciar viaje", destino durante el viaje). **No pasan
+  origen**: cada app usa el GPS del teléfono (más preciso que el GPS web).
+  - Google: `.../maps/dir/?api=1&destination=LAT,LNG&travelmode=driving&dir_action=navigate`
+  - Waze: `https://www.waze.com/ul?ll=LAT,LNG&navigate=yes`
+- **`NavGuide` = guía SOLO visual (sin voz):** muestra en pantalla la próxima
+  maniobra y la distancia.
+  - Pide la ruta con maniobras (`POST /api/trips/route` con `{ steps: true }`) → **geometría** + **pasos**.
+  - **Seguimiento por proyección sobre la ruta:** distancia **perpendicular**
+    (desvío) + **avance** a lo largo. Bucle cada **1 s**; GPS del conductor con
+    `maximumAge: 800ms`.
+  - **Desvío → alerta al panel de operaciones** (`onOffRoute`) cuando la
+    perpendicular supera **60 m** por **3 lecturas** seguidas (anti-rebote 8 s).
+    **No recalcula en los últimos ~300 m** al destino (en zona urbana el GPS
+    "salta" entre calles y daba falsos positivos que proponían otra ruta).
+  - **La voz interna se eliminó:** calculaba su propia ruta (aparte de la del
+    mapa) y se desincronizaba a mitad de camino. La voz la ponen Waze/Google.
 
-Historia de la decisión: [ADR-0003](../adr/0003-navegacion-por-proyeccion-sobre-ruta.md).
+Historia de la decisión: [ADR-0003](../adr/0003-navegacion-por-proyeccion-sobre-ruta.md)
+(la parte de **voz interna** quedó **superada**: hoy es guía visual + Waze/Google).
 
 ## Consideraciones iOS/Safari conocidas
 
-- El **switch de silencio** físico del iPhone puede silenciar `speechSynthesis`.
-- La voz solo funciona tras el primer toque (por eso el botón 🔊).
+- La **navegación por voz la aportan Waze/Google** (apps nativas), no la PWA.
+  Así evitamos las limitaciones de `speechSynthesis` en iOS (switch de silencio
+  físico, requisito de gesto del usuario, etc.).
 - La geolocalización de alta precisión consume batería: el Wake Lock ayuda a mantener el viaje activo, pero conviene enchufar el teléfono en jornadas largas.
 
 ## Pruebas en dispositivo
