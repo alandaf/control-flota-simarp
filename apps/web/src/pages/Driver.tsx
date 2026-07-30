@@ -95,11 +95,36 @@ export default function Driver() {
     const s = getSocket();
     const onNew = () => { if (onlineRef.current && !tripRef.current) loadPending(); };
     const onStatus = (p: { status: any }) => setStatus(p.status);
+    // Al (re)conectar, el servidor ya marcó al conductor offline (lo hace en el
+    // disconnect) y se perdieron las salas. Reanunciamos estado en línea,
+    // reenviamos la última posición y refrescamos; si no, tras dormir el
+    // teléfono el conductor quedaba fuera del mapa y sin recibir solicitudes.
+    const onConnect = () => {
+      if (onlineRef.current) {
+        getSocket().emit('driver:online', { online: true });
+        if (myPos.current) getSocket().emit('driver:location', { lat: myPos.current.lat, lng: myPos.current.lng });
+      }
+      refresh();
+    };
     s.on('trip:new', onNew);
     s.on('driver:status', onStatus);
+    s.on('connect', onConnect);
+
+    // Volver a primer plano (iOS suspende la pestaña): reconecta y refresca ya.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      getSocket();
+      onConnect();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     refresh();
     const iv = setInterval(refresh, 5000);
-    return () => { s.off('trip:new', onNew); s.off('driver:status', onStatus); clearInterval(iv); };
+    return () => {
+      s.off('trip:new', onNew); s.off('driver:status', onStatus); s.off('connect', onConnect);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(iv);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

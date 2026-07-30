@@ -76,12 +76,34 @@ export default function Passenger() {
     const s = getSocket();
     const onUpdate = () => refresh();
     const onDriverLoc = (p: { lat: number; lng: number }) => moveCar(p.lat, p.lng);
+    // Al (re)conectar, socket.io crea una conexión nueva y la sala del viaje en
+    // el servidor se PIERDE. Hay que re-emitir trip:join o dejan de llegar los
+    // `driver:location`. Sin esto, tras dormir el teléfono (típico en el iPhone
+    // que hace de hotspot) el auto se congelaba y no se retomaba.
+    const onConnect = () => {
+      if (joinedTrip.current) getSocket().emit('trip:join', { trip_id: joinedTrip.current });
+      refresh();
+    };
     s.on('trip:update', onUpdate);
     s.on('driver:location', onDriverLoc);
+    s.on('connect', onConnect);
+
+    // Al volver a primer plano (iOS suspende la pestaña y congela el polling),
+    // reconecta el socket y refresca de inmediato en vez de esperar al intervalo.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      getSocket(); // fuerza reconexión si estaba caído
+      refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     refresh();
     const iv = setInterval(refresh, 5000);
-    return () => { s.off('trip:update', onUpdate); s.off('driver:location', onDriverLoc); clearInterval(iv); };
+    return () => {
+      s.off('trip:update', onUpdate); s.off('driver:location', onDriverLoc); s.off('connect', onConnect);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(iv);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
